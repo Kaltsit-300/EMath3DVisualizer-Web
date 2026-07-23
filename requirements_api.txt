@@ -1,0 +1,6 @@
+fastapi>=0.116,<1.0
+uvicorn[standard]>=0.35,<1.0
+pydantic>=2.11,<3.0
+numpy>=2.0
+sympy>=1.13
+scikit-image>=0.25

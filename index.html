@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>方程可视化 3D</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-wrap">
+      <button id="navToggleBtn" class="nav-btn" type="button" aria-label="切换侧边栏">☰</button>
+      <div class="brand-main">方程可视化 · 3D 计算器</div>
+    </div>
+    <div class="top-actions">
+      <button id="resetViewBtnTop" class="ghost-btn" type="button">重置视角</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="side-panel">
+      <section class="panel-card algebra-only">
+        <div class="input-row">
+          <input id="eqInput" type="text" placeholder="输入方程，如 z=sqrt(4-x^2-y^2)" />
+          <button id="addBtn" class="primary-btn" type="button">添加</button>
+        </div>
+        <div class="action-row">
+          <button id="drawBtn" class="primary-btn" type="button">绘制</button>
+          <button id="clearBtn" class="danger-btn" type="button">清空</button>
+        </div>
+        <div class="quality-row">
+          <label for="qualitySel">画质</label>
+          <select id="qualitySel">
+            <option value="1" selected>标准（流畅）</option>
+            <option value="2">高清</option>
+            <option value="3">超清</option>
+          </select>
+        </div>
+        <div id="status" class="status">准备就绪</div>
+      </section>
+
+      <section id="inputPad" class="panel-card input-pad hidden">
+        <div class="input-pad-head">
+          <span>输入面板</span>
+          <button id="closeInputPadBtn" class="ghost-btn" type="button">收起</button>
+        </div>
+        <div class="input-pad-grid">
+          <button class="pad-key" data-token="x">x</button>
+          <button class="pad-key" data-token="y">y</button>
+          <button class="pad-key" data-token="z">z</button>
+          <button class="pad-key" data-token="pi">π</button>
+          <button class="pad-key" data-token="e">e</button>
+          <button class="pad-key" data-token="sqrt()">√</button>
+
+          <button class="pad-key" data-token="sin()">sin</button>
+          <button class="pad-key" data-token="cos()">cos</button>
+          <button class="pad-key" data-token="tan()">tan</button>
+          <button class="pad-key" data-token="+">+</button>
+          <button class="pad-key" data-token="-">−</button>
+          <button class="pad-key" data-token="^">^</button>
+
+          <button class="pad-key" data-token="7">7</button>
+          <button class="pad-key" data-token="8">8</button>
+          <button class="pad-key" data-token="9">9</button>
+          <button class="pad-key" data-token="*">×</button>
+          <button class="pad-key" data-token="/">÷</button>
+          <button class="pad-key" data-token="=">=</button>
+
+          <button class="pad-key" data-token="4">4</button>
+          <button class="pad-key" data-token="5">5</button>
+          <button class="pad-key" data-token="6">6</button>
+          <button class="pad-key" data-token="(">(</button>
+          <button class="pad-key" data-token=")">)</button>
+          <button class="pad-key" data-token=",">,</button>
+
+          <button class="pad-key" data-token="1">1</button>
+          <button class="pad-key" data-token="2">2</button>
+          <button class="pad-key" data-token="3">3</button>
+          <button class="pad-key" data-token="ln()">ln</button>
+          <button class="pad-key" data-token="log()">log</button>
+          <button class="pad-key" data-token="abs()">abs</button>
+
+          <button class="pad-key" data-token="0">0</button>
+          <button class="pad-key" data-token=".">.</button>
+          <button class="pad-key action" data-action="left">←</button>
+          <button class="pad-key action" data-action="right">→</button>
+          <button class="pad-key action" data-action="backspace">⌫</button>
+          <button class="pad-key action" data-action="clear">清空</button>
+        </div>
+      </section>
+
+      <section class="panel-card algebra-only">
+        <div class="section-title">
+          方程列表
+        </div>
+        <ul id="eqList" class="eq-list"></ul>
+      </section>
+
+      <section class="panel-card algebra-only">
+        <div class="section-title">参数</div>
+        <div id="paramList" class="param-list"></div>
+      </section>
+
+      <section class="panel-card">
+        <div class="section-title">显示设置</div>
+        <div class="settings-block">
+          <label class="setting-item">
+            <span>网格</span>
+            <input id="toggleGrid" type="checkbox" checked />
+          </label>
+          <label class="setting-item">
+            <span>参考平面</span>
+            <input id="togglePlane" type="checkbox" checked />
+          </label>
+          <label class="setting-item">
+            <span>图例</span>
+            <input id="toggleLegend" type="checkbox" checked />
+          </label>
+        </div>
+      </section>
+
+    </aside>
+
+    <main class="viewer-wrap">
+      <div id="viewer"></div>
+      <div id="miniAxis" class="mini-axis"></div>
+      <div id="legend" class="legend">
+        <h3>方程列表</h3>
+      </div>
+      <div class="view-tools">
+        <button id="zoomInBtn" type="button">+</button>
+        <button id="zoomOutBtn" type="button">−</button>
+        <button id="resetViewBtn" type="button">⌂</button>
+      </div>
+    </main>
+  </div>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
