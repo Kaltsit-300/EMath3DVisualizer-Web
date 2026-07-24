@@ -3,228 +3,208 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MATH·VISOR — 方程可视化终端</title>
+  <title>Atelier — 方程可视化</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Noto+Serif+SC:wght@300;400;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/webapp_styles.css" />
 </head>
 <body>
-  <!-- 终端环境层 -->
-  <div class="crt-overlay" aria-hidden="true"></div>
-  <div class="scanline" aria-hidden="true"></div>
+  <!-- 氛围层 -->
+  <div class="noise" aria-hidden="true"></div>
   <div class="vignette" aria-hidden="true"></div>
-  <div class="grid-floor" aria-hidden="true"></div>
 
-  <header class="hud-topbar">
-    <div class="hud-left">
-      <button id="navToggleBtn" class="hud-btn icon" type="button" aria-label="切换侧边栏">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
-      </button>
-      <div class="brand-lockup">
-        <div class="brand-mark">MATH·VISOR</div>
-        <div class="brand-sub">方程可视化终端</div>
-      </div>
+  <header class="atelier-header">
+    <button id="navToggleBtn" class="menu-trigger" type="button" aria-label="切换侧边栏">
+      <span></span>
+      <span></span>
+    </button>
+    <div class="brand">
+      <div class="brand-name">Atelier</div>
+      <div class="brand-line"></div>
+      <div class="brand-sub">方程可视化工作室</div>
     </div>
-
-    <div class="hud-center">
-      <div class="hud-pill">
-        <span class="status-diamond active"></span>
-        <span id="systemStatus">系统在线</span>
-      </div>
-    </div>
-
-    <div class="hud-right">
-      <button id="resetViewBtnTop" class="hud-btn" type="button">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-          <path d="M3 3v5h5" />
-        </svg>
-        <span>重置视角</span>
-      </button>
+    <div class="header-actions">
+      <button id="resetViewBtnTop" class="text-link" type="button">重置视角</button>
     </div>
   </header>
 
   <div class="layout">
-    <aside class="terminal-panel">
-      <!-- 主输入模块 -->
-      <section class="panel-card primary-card">
-        <div class="card-corner tl"></div>
-        <div class="card-corner tr"></div>
-        <div class="card-corner bl"></div>
-        <div class="card-corner br"></div>
-
-        <div class="panel-header">
-          <span class="panel-id">01</span>
-          <span class="panel-title">方程输入</span>
-        </div>
-
-        <div class="input-cluster">
-          <div class="input-row">
-            <input id="eqInput" type="text" placeholder="输入方程，如 z=sqrt(4-x^2-y^2)" autocomplete="off" />
-            <button id="addBtn" class="hud-btn primary" type="button">添加</button>
+    <aside class="palette">
+      <div class="palette-inner">
+        <section class="palette-section composition">
+          <div class="section-eyebrow">
+            <span class="eyebrow-index">01</span>
+            <span class="eyebrow-line"></span>
           </div>
-          <div class="action-row">
-            <button id="drawBtn" class="hud-btn primary" type="button">绘制</button>
-            <button id="clearBtn" class="hud-btn danger" type="button">清空</button>
+          <h2 class="section-title">Composition</h2>
+          <p class="section-desc">输入方程，构建你的几何作品</p>
+
+          <div class="equation-composer">
+            <label class="field-label">Equation</label>
+            <div class="input-bezel">
+              <input id="eqInput" type="text" placeholder="z = sqrt(4 - x^2 - y^2)" autocomplete="off" />
+            </div>
+            <div class="composer-actions">
+              <button id="addBtn" class="pill-btn" type="button">Add</button>
+              <button id="drawBtn" class="pill-btn primary" type="button">Render</button>
+              <button id="clearBtn" class="pill-btn ghost" type="button">Clear</button>
+            </div>
           </div>
-        </div>
 
-        <div class="quality-row">
-          <label for="qualitySel">渲染精度</label>
-          <select id="qualitySel">
-            <option value="1" selected>标准 · 实时</option>
-            <option value="2">高清 · 平衡</option>
-            <option value="3">超清 · 细腻</option>
-          </select>
-        </div>
-
-        <div id="status" class="status-line">
-          <span class="status-dot"></span>
-          <span class="status-text">准备就绪</span>
-        </div>
-      </section>
-
-      <!-- 数学键盘 -->
-      <section id="inputPad" class="panel-card pad-card">
-        <div class="panel-header compact">
-          <span class="panel-id">02</span>
-          <span class="panel-title">数学键盘</span>
-          <button id="closeInputPadBtn" class="hud-btn ghost micro" type="button">收起</button>
-        </div>
-        <div class="input-pad-grid">
-          <button class="pad-key" data-token="x">x</button>
-          <button class="pad-key" data-token="y">y</button>
-          <button class="pad-key" data-token="z">z</button>
-          <button class="pad-key" data-token="pi">π</button>
-          <button class="pad-key" data-token="e">e</button>
-          <button class="pad-key" data-token="sqrt()">√</button>
-
-          <button class="pad-key" data-token="sin()">sin</button>
-          <button class="pad-key" data-token="cos()">cos</button>
-          <button class="pad-key" data-token="tan()">tan</button>
-          <button class="pad-key" data-token="+">+</button>
-          <button class="pad-key" data-token="-">−</button>
-          <button class="pad-key" data-token="^">^</button>
-
-          <button class="pad-key" data-token="7">7</button>
-          <button class="pad-key" data-token="8">8</button>
-          <button class="pad-key" data-token="9">9</button>
-          <button class="pad-key" data-token="*">×</button>
-          <button class="pad-key" data-token="/">÷</button>
-          <button class="pad-key" data-token="=">=</button>
-
-          <button class="pad-key" data-token="4">4</button>
-          <button class="pad-key" data-token="5">5</button>
-          <button class="pad-key" data-token="6">6</button>
-          <button class="pad-key" data-token="(">(</button>
-          <button class="pad-key" data-token=")">)</button>
-          <button class="pad-key" data-token=",">,</button>
-
-          <button class="pad-key" data-token="1">1</button>
-          <button class="pad-key" data-token="2">2</button>
-          <button class="pad-key" data-token="3">3</button>
-          <button class="pad-key" data-token="ln()">ln</button>
-          <button class="pad-key" data-token="log()">log</button>
-          <button class="pad-key" data-token="abs()">abs</button>
-
-          <button class="pad-key" data-token="0">0</button>
-          <button class="pad-key" data-token=".">.</button>
-          <button class="pad-key action" data-action="left">←</button>
-          <button class="pad-key action" data-action="right">→</button>
-          <button class="pad-key action" data-action="backspace">⌫</button>
-          <button class="pad-key action" data-action="clear">AC</button>
-        </div>
-      </section>
-
-      <!-- 方程列表 -->
-      <section class="panel-card list-card">
-        <div class="panel-header">
-          <span class="panel-id">03</span>
-          <span class="panel-title">实验队列</span>
-          <span id="eqCount" class="panel-badge">0</span>
-        </div>
-        <ul id="eqList" class="eq-list"></ul>
-        <div id="emptyState" class="empty-state">
-          <div class="empty-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
-              <path d="M12 2v20M2 12h20" />
-            </svg>
+          <div class="quality-field">
+            <label for="qualitySel">Resolution</label>
+            <div class="select-bezel">
+              <select id="qualitySel">
+                <option value="1" selected>Standard · real-time</option>
+                <option value="2">High definition</option>
+                <option value="3">Ultra fine</option>
+              </select>
+            </div>
           </div>
-          <p>暂无方程</p>
-          <span>输入一个方程开始实验</span>
-        </div>
-      </section>
 
-      <!-- 参数 -->
-      <section class="panel-card params-card">
-        <div class="panel-header">
-          <span class="panel-id">04</span>
-          <span class="panel-title">参数调制</span>
-        </div>
-        <div id="paramList" class="param-list"></div>
-      </section>
+          <div id="status" class="status-strip">
+            <span class="status-pip"></span>
+            <span class="status-text">Ready</span>
+          </div>
+        </section>
 
-      <!-- 显示设置 -->
-      <section class="panel-card settings-card">
-        <div class="panel-header">
-          <span class="panel-id">05</span>
-          <span class="panel-title">视图控制</span>
-        </div>
-        <div class="settings-block">
-          <label class="setting-item">
-            <span>参考网格</span>
-            <input id="toggleGrid" type="checkbox" checked />
-          </label>
-          <label class="setting-item">
-            <span>基准平面</span>
-            <input id="togglePlane" type="checkbox" checked />
-          </label>
-          <label class="setting-item">
-            <span>图例覆盖</span>
-            <input id="toggleLegend" type="checkbox" checked />
-          </label>
-        </div>
-      </section>
+        <section id="inputPad" class="palette-section keyboard">
+          <div class="section-eyebrow">
+            <span class="eyebrow-index">02</span>
+            <span class="eyebrow-line"></span>
+            <button id="closeInputPadBtn" class="collapse-btn" type="button">Collapse</button>
+          </div>
+          <h2 class="section-title">Notation</h2>
+          <div class="math-grid">
+            <button class="math-key" data-token="x">x</button>
+            <button class="math-key" data-token="y">y</button>
+            <button class="math-key" data-token="z">z</button>
+            <button class="math-key" data-token="pi">π</button>
+            <button class="math-key" data-token="e">e</button>
+            <button class="math-key" data-token="sqrt()">√</button>
+
+            <button class="math-key" data-token="sin()">sin</button>
+            <button class="math-key" data-token="cos()">cos</button>
+            <button class="math-key" data-token="tan()">tan</button>
+            <button class="math-key" data-token="+">+</button>
+            <button class="math-key" data-token="-">−</button>
+            <button class="math-key" data-token="^">^</button>
+
+            <button class="math-key" data-token="7">7</button>
+            <button class="math-key" data-token="8">8</button>
+            <button class="math-key" data-token="9">9</button>
+            <button class="math-key" data-token="*">×</button>
+            <button class="math-key" data-token="/">÷</button>
+            <button class="math-key" data-token="=">=</button>
+
+            <button class="math-key" data-token="4">4</button>
+            <button class="math-key" data-token="5">5</button>
+            <button class="math-key" data-token="6">6</button>
+            <button class="math-key" data-token="(">(</button>
+            <button class="math-key" data-token=")">)</button>
+            <button class="math-key" data-token=",">,</button>
+
+            <button class="math-key" data-token="1">1</button>
+            <button class="math-key" data-token="2">2</button>
+            <button class="math-key" data-token="3">3</button>
+            <button class="math-key" data-token="ln()">ln</button>
+            <button class="math-key" data-token="log()">log</button>
+            <button class="math-key" data-token="abs()">abs</button>
+
+            <button class="math-key" data-token="0">0</button>
+            <button class="math-key" data-token=".">.</button>
+            <button class="math-key action" data-action="left">←</button>
+            <button class="math-key action" data-action="right">→</button>
+            <button class="math-key action" data-action="backspace">⌫</button>
+            <button class="math-key action" data-action="clear">AC</button>
+          </div>
+        </section>
+
+        <section class="palette-section gallery">
+          <div class="section-eyebrow">
+            <span class="eyebrow-index">03</span>
+            <span class="eyebrow-line"></span>
+            <span id="eqCount" class="count-chip">0</span>
+          </div>
+          <h2 class="section-title">Gallery</h2>
+          <ul id="eqList" class="object-list"></ul>
+          <div id="emptyState" class="empty-plate">
+            <span class="empty-number">00</span>
+            <p>No equations yet</p>
+          </div>
+        </section>
+
+        <section class="palette-section parameters">
+          <div class="section-eyebrow">
+            <span class="eyebrow-index">04</span>
+            <span class="eyebrow-line"></span>
+          </div>
+          <h2 class="section-title">Parameters</h2>
+          <div id="paramList" class="parameter-list"></div>
+        </section>
+
+        <section class="palette-section view-controls">
+          <div class="section-eyebrow">
+            <span class="eyebrow-index">05</span>
+            <span class="eyebrow-line"></span>
+          </div>
+          <h2 class="section-title">View</h2>
+          <div class="toggle-list">
+            <label class="toggle-item">
+              <span>Reference grid</span>
+              <input id="toggleGrid" type="checkbox" checked />
+              <span class="toggle-switch"></span>
+            </label>
+            <label class="toggle-item">
+              <span>Ground plane</span>
+              <input id="togglePlane" type="checkbox" checked />
+              <span class="toggle-switch"></span>
+            </label>
+            <label class="toggle-item">
+              <span>Legend overlay</span>
+              <input id="toggleLegend" type="checkbox" checked />
+              <span class="toggle-switch"></span>
+            </label>
+          </div>
+        </section>
+      </div>
     </aside>
 
-    <main class="viewer-wrap">
+    <main class="stage">
       <div id="viewer"></div>
 
-      <!-- HUD 角标 -->
-      <div class="viewer-hud" aria-hidden="true">
-        <div class="hud-corner tl"><span></span><span></span></div>
-        <div class="hud-corner tr"><span></span><span></span></div>
-        <div class="hud-corner bl"><span></span><span></span></div>
-        <div class="hud-corner br"><span></span><span></span></div>
+      <div class="stage-frame" aria-hidden="true">
+        <div class="frame-corner tl"></div>
+        <div class="frame-corner tr"></div>
+        <div class="frame-corner bl"></div>
+        <div class="frame-corner br"></div>
       </div>
 
-      <div id="miniAxis" class="mini-axis">
-        <div class="mini-axis-label">XYZ</div>
+      <div id="miniAxis" class="orientation-plate">
+        <span class="plate-label">XYZ</span>
       </div>
 
-      <div id="legend" class="legend">
-        <div class="legend-header">
-          <span class="legend-id">EQ</span>
-          <h3>方程列表</h3>
+      <div id="legend" class="equation-legend">
+        <div class="legend-title">
+          <span class="legend-index">Eq</span>
+          <span>Equations</span>
         </div>
       </div>
 
-      <div class="view-tools">
+      <div class="stage-tools">
         <button id="zoomInBtn" type="button" aria-label="放大">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M12 5v14M5 12h14" />
           </svg>
         </button>
         <button id="zoomOutBtn" type="button" aria-label="缩小">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M5 12h14" />
           </svg>
         </button>
         <button id="resetViewBtn" type="button" aria-label="重置视角">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
             <path d="M3 3v5h5" />
           </svg>
