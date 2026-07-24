@@ -24,7 +24,7 @@
       <div class="brand-sub">方程可视化</div>
     </div>
     <div class="header-actions">
-      <button id="resetViewBtnTop" class="text-link" type="button">Reset View</button>
+      <button id="resetViewBtnTop" class="text-link" type="button">重置视角</button>
     </div>
   </header>
 
@@ -32,7 +32,7 @@
     <aside class="palette">
       <div class="palette-header">
         <span class="palette-index">01</span>
-        <h2 class="palette-title">Composition</h2>
+        <h2 class="palette-title">构图</h2>
       </div>
       <p class="palette-subtitle">输入方程，构建几何作品</p>
 
@@ -41,9 +41,9 @@
           <input id="eqInput" type="text" placeholder="z = sqrt(4 - x^2 - y^2)" autocomplete="off" />
         </div>
         <div class="composer-actions">
-          <button id="drawBtn" class="pill-btn primary" type="button">Render</button>
-          <button id="addBtn" class="pill-btn" type="button">Add</button>
-          <button id="clearBtn" class="pill-btn ghost" type="button">Clear</button>
+          <button id="drawBtn" class="pill-btn primary" type="button">绘制</button>
+          <button id="addBtn" class="pill-btn" type="button">添加</button>
+          <button id="clearBtn" class="pill-btn ghost" type="button">清空</button>
         </div>
       </div>
 
@@ -53,13 +53,13 @@
             <rect x="2" y="4" width="20" height="16" rx="2" />
             <path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10" />
           </svg>
-          <span>Notation</span>
+          <span>符号键盘</span>
         </button>
         <div class="select-bezel mini">
           <select id="qualitySel">
-            <option value="1" selected>Standard</option>
-            <option value="2">HD</option>
-            <option value="3">Ultra</option>
+            <option value="1" selected>标准</option>
+            <option value="2">高清</option>
+            <option value="3">超清</option>
           </select>
         </div>
       </div>
@@ -107,27 +107,27 @@
 
       <div id="status" class="status-strip">
         <span class="status-pip"></span>
-        <span class="status-text">Ready</span>
+        <span class="status-text">就绪</span>
       </div>
 
       <div class="divider"></div>
 
       <div class="palette-header small">
         <span class="palette-index">02</span>
-        <h2 class="palette-title">Gallery</h2>
+        <h2 class="palette-title">方程库</h2>
         <span id="eqCount" class="count-chip">0</span>
       </div>
       <ul id="eqList" class="object-list"></ul>
       <div id="emptyState" class="empty-plate">
         <span class="empty-number">00</span>
-        <p>No equations yet</p>
+        <p>暂无方程</p>
       </div>
 
       <div class="divider"></div>
 
       <div class="palette-header small">
         <span class="palette-index">03</span>
-        <h2 class="palette-title">Parameters</h2>
+        <h2 class="palette-title">参数</h2>
       </div>
       <div id="paramList" class="parameter-list"></div>
 
@@ -135,17 +135,17 @@
         <label class="mini-toggle">
           <input id="toggleGrid" type="checkbox" checked />
           <span class="toggle-switch"></span>
-          <span>Grid</span>
+          <span>网格</span>
         </label>
         <label class="mini-toggle">
           <input id="togglePlane" type="checkbox" checked />
           <span class="toggle-switch"></span>
-          <span>Plane</span>
+          <span>平面</span>
         </label>
         <label class="mini-toggle">
           <input id="toggleLegend" type="checkbox" checked />
           <span class="toggle-switch"></span>
-          <span>Legend</span>
+          <span>图例</span>
         </label>
       </div>
     </aside>
@@ -164,7 +164,7 @@
       <div id="legend" class="equation-legend">
         <div class="legend-title">
           <span class="legend-index">Eq</span>
-          <span>Equations</span>
+          <span>方程列表</span>
         </div>
       </div>
       <div class="stage-tools">
