@@ -1372,7 +1372,7 @@ async function ensure3D() {
       if (!state.hasDrawn) return;
       if (refreshLocalPlaneMeshesOnViewChange()) {
         scheduleIntersectionRefresh(40, { lod: false });
-        setStatus("View updated");
+        setStatus("视野已更新");
         return;
       }
       scheduleDraw(80);
@@ -1520,7 +1520,7 @@ async function ensure3D() {
     view.started = true;
     return true;
   } catch (err) {
-    setStatus(`3D engine failed: ${String(err)}`, "error");
+    setStatus(`3D 引擎加载失败: ${String(err)}`, "error");
     return false;
   }
 }
@@ -1618,7 +1618,7 @@ async function renderParamList() {
     const empty = document.createElement("div");
     empty.style.color = "#8795a8";
     empty.style.fontSize = "13px";
-    empty.textContent = "No parameters";
+    empty.textContent = "当前没有参数";
     paramList.appendChild(empty);
     return;
   }
