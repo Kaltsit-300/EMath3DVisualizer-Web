@@ -55,12 +55,12 @@ const resetViewBtn = document.getElementById("resetViewBtn");
 const resetViewBtnTop = document.getElementById("resetViewBtnTop");
 const inputPad = document.getElementById("inputPad");
 const closeInputPadBtn = document.getElementById("closeInputPadBtn");
-const toggleKeyboardBtn = document.getElementById("toggleKeyboardBtn");
 const miniAxisEl = document.getElementById("miniAxis");
 const navToggleBtn = document.getElementById("navToggleBtn");
 const toggleGrid = document.getElementById("toggleGrid");
 const togglePlane = document.getElementById("togglePlane");
 const toggleLegend = document.getElementById("toggleLegend");
+const toggleKeyboardBtn = document.getElementById("toggleKeyboardBtn");
 
 
 const view = {
