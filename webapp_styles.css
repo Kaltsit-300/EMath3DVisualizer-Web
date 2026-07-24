@@ -1,19 +1,19 @@
 :root {
-  --bg: #0e0e10;
-  --bg-2: #121214;
-  --surface: #171719;
-  --surface-2: #1e1e21;
-  --surface-3: #252529;
-  --border: rgba(212, 185, 144, 0.18);
-  --border-strong: rgba(212, 185, 144, 0.35);
-  --gold: #d4b990;
-  --gold-bright: #e8cfa8;
-  --gold-dim: #8a7a60;
-  --gold-glow: rgba(212, 185, 144, 0.22);
-  --text: #f3efe8;
-  --text-2: #c9c3b8;
-  --muted: #7d786f;
-  --danger: #b86b6b;
+  --bg: #13151a;
+  --bg-2: #191b22;
+  --surface: #22252e;
+  --surface-2: #2a2e38;
+  --surface-3: #343842;
+  --border: rgba(212, 185, 144, 0.22);
+  --border-strong: rgba(212, 185, 144, 0.42);
+  --gold: #e4caa0;
+  --gold-bright: #f5dfb8;
+  --gold-dim: #a69270;
+  --gold-glow: rgba(228, 202, 160, 0.28);
+  --text: #f7f4ee;
+  --text-2: #ded8cc;
+  --muted: #9b9488;
+  --danger: #c87a7a;
   --shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
   --font-display: "Playfair Display", "Noto Serif SC", serif;
   --font-body: "Noto Serif SC", "Songti SC", "STSong", serif;
@@ -52,7 +52,7 @@ body {
 }
 
 .vignette {
-  background: radial-gradient(circle at 50% 35%, transparent 30%, rgba(0,0,0,0.55) 100%);
+  background: radial-gradient(circle at 50% 35%, transparent 35%, rgba(0,0,0,0.38) 100%);
 }
 
 /* Header */
@@ -61,7 +61,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
-  background: rgba(14,14,16,0.92);
+  background: rgba(19,21,26,0.95);
   border-bottom: 1px solid var(--border);
   backdrop-filter: blur(12px);
   position: relative;
@@ -173,7 +173,7 @@ body.panel-collapsed .palette { overflow: hidden; width: 0; padding: 0; border-r
   min-height: 0;
   overflow: auto;
   border-right: 1px solid var(--border);
-  background: rgba(18, 18, 20, 0.92);
+  background: rgba(22, 24, 30, 0.95);
   padding: 28px;
   position: relative;
   z-index: 50;
@@ -256,7 +256,7 @@ body.panel-collapsed .palette { overflow: hidden; width: 0; padding: 0; border-r
   color: var(--muted);
   font-family: var(--font-mono);
   font-style: italic;
-  opacity: 0.55;
+  opacity: 0.75;
 }
 
 .input-bezel input:focus {
@@ -369,12 +369,12 @@ body.panel-collapsed .palette { overflow: hidden; width: 0; padding: 0; border-r
   padding: 0 12px;
   font-size: 11px;
   font-family: var(--font-mono);
-  color: var(--text-2);
+  color: var(--text);
   background: var(--surface);
   outline: none;
   cursor: pointer;
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5l5 5 5-5' stroke='%23d4b990' stroke-width='1.2' fill='none'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5l5 5 5-5' stroke='%23e4caa0' stroke-width='1.2' fill='none'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
 }
@@ -416,7 +416,7 @@ body.panel-collapsed .palette { overflow: hidden; width: 0; padding: 0; border-r
   gap: 10px;
   padding: 10px 14px;
   border: 1px solid var(--border);
-  background: rgba(14, 14, 16, 0.6);
+  background: rgba(22, 24, 30, 0.7);
   margin-bottom: 28px;
 }
 
@@ -469,13 +469,13 @@ body.panel-collapsed .palette { overflow: hidden; width: 0; padding: 0; border-r
   gap: 12px;
   padding: 12px 14px;
   border: 1px solid var(--border);
-  background: rgba(14, 14, 16, 0.4);
+  background: rgba(22, 24, 30, 0.55);
   cursor: pointer;
   transition: border-color 0.25s var(--ease-out), background 0.25s var(--ease-out);
 }
 
-.eq-item:hover { border-color: var(--gold-dim); background: rgba(212, 185, 144, 0.04); }
-.eq-item.active { border-color: var(--gold); background: rgba(212, 185, 144, 0.08); }
+.eq-item:hover { border-color: var(--gold-dim); background: rgba(228, 202, 160, 0.06); }
+.eq-item.active { border-color: var(--gold); background: rgba(228, 202, 160, 0.12); }
 
 .badge {
   width: 8px;
@@ -523,7 +523,7 @@ body.panel-collapsed .palette { overflow: hidden; width: 0; padding: 0; border-r
 .empty-number {
   font-family: var(--font-display);
   font-size: 28px;
-  color: var(--surface-3);
+  color: var(--surface-2);
   line-height: 1;
 }
 
@@ -539,7 +539,7 @@ body.panel-collapsed .palette { overflow: hidden; width: 0; padding: 0; border-r
 .param-item {
   border: 1px solid var(--border);
   padding: 12px;
-  background: rgba(14, 14, 16, 0.4);
+  background: rgba(22, 24, 30, 0.55);
 }
 
 .param-top {
@@ -660,7 +660,7 @@ body.panel-collapsed .palette { overflow: hidden; width: 0; padding: 0; border-r
   position: relative;
   min-height: 0;
   height: 100%;
-  background: radial-gradient(circle at 40% 30%, rgba(30,30,33,1) 0%, var(--bg) 50%, #09090a 100%);
+  background: radial-gradient(circle at 40% 30%, rgba(45,48,56,1) 0%, var(--bg) 50%, #0c0d12 100%);
   overflow: hidden;
 }
 
@@ -697,7 +697,7 @@ body.panel-collapsed .palette { overflow: hidden; width: 0; padding: 0; border-r
   width: clamp(160px, 12vw, 200px);
   height: clamp(160px, 12vw, 200px);
   border: 1px solid var(--border);
-  background: rgba(14, 14, 16, 0.55);
+  background: rgba(22, 24, 30, 0.65);
   backdrop-filter: blur(10px);
   pointer-events: none;
   display: flex;
@@ -719,7 +719,7 @@ body.panel-collapsed .palette { overflow: hidden; width: 0; padding: 0; border-r
   top: 22px;
   right: 22px;
   border: 1px solid var(--border);
-  background: rgba(14, 14, 16, 0.82);
+  background: rgba(22, 24, 30, 0.88);
   padding: 16px 18px;
   min-width: 190px;
   max-width: 320px;
@@ -784,7 +784,7 @@ body.panel-collapsed .palette { overflow: hidden; width: 0; padding: 0; border-r
   align-items: center;
   justify-content: center;
   border: 1px solid var(--border);
-  background: rgba(14, 14, 16, 0.85);
+  background: rgba(22, 24, 30, 0.9);
   color: var(--text-2);
   cursor: pointer;
   transition: all 0.25s var(--ease-out);
