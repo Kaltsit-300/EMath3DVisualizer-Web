@@ -190,11 +190,33 @@ def page_js() -> FileResponse:
     return FileResponse(UI_JS, media_type="application/javascript", headers=NO_CACHE_HEADERS)
 
 
+@app.get("/webapp_app.js")
+def page_js_v2() -> FileResponse:
+    if not UI_JS.exists():
+        raise HTTPException(status_code=404, detail=f"Missing UI file: {UI_JS.name}")
+    return FileResponse(UI_JS, media_type="application/javascript", headers=NO_CACHE_HEADERS)
+
+
 @app.get("/styles.css")
 def page_css() -> FileResponse:
     if not UI_CSS.exists():
         raise HTTPException(status_code=404, detail=f"Missing UI file: {UI_CSS.name}")
     return FileResponse(UI_CSS, media_type="text/css", headers=NO_CACHE_HEADERS)
+
+
+@app.get("/webapp_styles.css")
+def page_css_v2() -> FileResponse:
+    if not UI_CSS.exists():
+        raise HTTPException(status_code=404, detail=f"Missing UI file: {UI_CSS.name}")
+    return FileResponse(UI_CSS, media_type="text/css", headers=NO_CACHE_HEADERS)
+
+
+@app.get("/webapp_mesh_worker.js")
+def page_worker() -> FileResponse:
+    worker_path = BASE_DIR / "webapp_mesh_worker.js"
+    if not worker_path.exists():
+        raise HTTPException(status_code=404, detail="Missing UI file: webapp_mesh_worker.js")
+    return FileResponse(worker_path, media_type="application/javascript", headers=NO_CACHE_HEADERS)
 
 
 @app.post("/api/parse")
