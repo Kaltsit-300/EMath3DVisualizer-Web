@@ -17,9 +17,9 @@ from services.formula_formatter import sympy_to_label, sympy_to_rich_label
 
 
 BASE_DIR = Path(__file__).resolve().parent
-UI_INDEX = BASE_DIR / "index.html"
-UI_JS = BASE_DIR / "app.js"
-UI_CSS = BASE_DIR / "styles.css"
+UI_INDEX = BASE_DIR / "webapp_index.html"
+UI_JS = BASE_DIR / "webapp_app.js"
+UI_CSS = BASE_DIR / "webapp_styles.css"
 
 
 def _ensure_runtime_deps() -> None:
