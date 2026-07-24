@@ -10,7 +10,6 @@
   <link rel="stylesheet" href="/webapp_styles.css" />
 </head>
 <body>
-  <!-- 氛围层 -->
   <div class="noise" aria-hidden="true"></div>
   <div class="vignette" aria-hidden="true"></div>
 
@@ -22,176 +21,152 @@
     <div class="brand">
       <div class="brand-name">Atelier</div>
       <div class="brand-line"></div>
-      <div class="brand-sub">方程可视化工作室</div>
+      <div class="brand-sub">方程可视化</div>
     </div>
     <div class="header-actions">
-      <button id="resetViewBtnTop" class="text-link" type="button">重置视角</button>
+      <button id="resetViewBtnTop" class="text-link" type="button">Reset View</button>
     </div>
   </header>
 
   <div class="layout">
     <aside class="palette">
-      <div class="palette-inner">
-        <section class="palette-section composition">
-          <div class="section-eyebrow">
-            <span class="eyebrow-index">01</span>
-            <span class="eyebrow-line"></span>
-          </div>
-          <h2 class="section-title">Composition</h2>
-          <p class="section-desc">输入方程，构建你的几何作品</p>
+      <div class="palette-header">
+        <span class="palette-index">01</span>
+        <h2 class="palette-title">Composition</h2>
+      </div>
+      <p class="palette-subtitle">输入方程，构建几何作品</p>
 
-          <div class="equation-composer">
-            <label class="field-label">Equation</label>
-            <div class="input-bezel">
-              <input id="eqInput" type="text" placeholder="z = sqrt(4 - x^2 - y^2)" autocomplete="off" />
-            </div>
-            <div class="composer-actions">
-              <button id="addBtn" class="pill-btn" type="button">Add</button>
-              <button id="drawBtn" class="pill-btn primary" type="button">Render</button>
-              <button id="clearBtn" class="pill-btn ghost" type="button">Clear</button>
-            </div>
-          </div>
+      <div class="composer">
+        <div class="input-bezel">
+          <input id="eqInput" type="text" placeholder="z = sqrt(4 - x^2 - y^2)" autocomplete="off" />
+        </div>
+        <div class="composer-actions">
+          <button id="drawBtn" class="pill-btn primary" type="button">Render</button>
+          <button id="addBtn" class="pill-btn" type="button">Add</button>
+          <button id="clearBtn" class="pill-btn ghost" type="button">Clear</button>
+        </div>
+      </div>
 
-          <div class="quality-field">
-            <label for="qualitySel">Resolution</label>
-            <div class="select-bezel">
-              <select id="qualitySel">
-                <option value="1" selected>Standard · real-time</option>
-                <option value="2">High definition</option>
-                <option value="3">Ultra fine</option>
-              </select>
-            </div>
-          </div>
+      <div class="toolbar">
+        <button id="toggleKeyboardBtn" class="tool-btn" type="button">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="2" y="4" width="20" height="16" rx="2" />
+            <path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10" />
+          </svg>
+          <span>Notation</span>
+        </button>
+        <div class="select-bezel mini">
+          <select id="qualitySel">
+            <option value="1" selected>Standard</option>
+            <option value="2">HD</option>
+            <option value="3">Ultra</option>
+          </select>
+        </div>
+      </div>
 
-          <div id="status" class="status-strip">
-            <span class="status-pip"></span>
-            <span class="status-text">Ready</span>
-          </div>
-        </section>
+      <section id="inputPad" class="palette-section keyboard hidden">
+        <div class="math-grid">
+          <button class="math-key" data-token="x">x</button>
+          <button class="math-key" data-token="y">y</button>
+          <button class="math-key" data-token="z">z</button>
+          <button class="math-key" data-token="pi">π</button>
+          <button class="math-key" data-token="e">e</button>
+          <button class="math-key" data-token="sqrt()">√</button>
+          <button class="math-key" data-token="sin()">sin</button>
+          <button class="math-key" data-token="cos()">cos</button>
+          <button class="math-key" data-token="tan()">tan</button>
+          <button class="math-key" data-token="+">+</button>
+          <button class="math-key" data-token="-">−</button>
+          <button class="math-key" data-token="^">^</button>
+          <button class="math-key" data-token="7">7</button>
+          <button class="math-key" data-token="8">8</button>
+          <button class="math-key" data-token="9">9</button>
+          <button class="math-key" data-token="*">×</button>
+          <button class="math-key" data-token="/">÷</button>
+          <button class="math-key" data-token="=">=</button>
+          <button class="math-key" data-token="4">4</button>
+          <button class="math-key" data-token="5">5</button>
+          <button class="math-key" data-token="6">6</button>
+          <button class="math-key" data-token="(">(</button>
+          <button class="math-key" data-token=")">)</button>
+          <button class="math-key" data-token=",">,</button>
+          <button class="math-key" data-token="1">1</button>
+          <button class="math-key" data-token="2">2</button>
+          <button class="math-key" data-token="3">3</button>
+          <button class="math-key" data-token="ln()">ln</button>
+          <button class="math-key" data-token="log()">log</button>
+          <button class="math-key" data-token="abs()">abs</button>
+          <button class="math-key" data-token="0">0</button>
+          <button class="math-key" data-token=".">.</button>
+          <button class="math-key action" data-action="left">←</button>
+          <button class="math-key action" data-action="right">→</button>
+          <button class="math-key action" data-action="backspace">⌫</button>
+          <button class="math-key action" data-action="clear">AC</button>
+        </div>
+      </section>
 
-        <section id="inputPad" class="palette-section keyboard">
-          <div class="section-eyebrow">
-            <span class="eyebrow-index">02</span>
-            <span class="eyebrow-line"></span>
-            <button id="closeInputPadBtn" class="collapse-btn" type="button">Collapse</button>
-          </div>
-          <h2 class="section-title">Notation</h2>
-          <div class="math-grid">
-            <button class="math-key" data-token="x">x</button>
-            <button class="math-key" data-token="y">y</button>
-            <button class="math-key" data-token="z">z</button>
-            <button class="math-key" data-token="pi">π</button>
-            <button class="math-key" data-token="e">e</button>
-            <button class="math-key" data-token="sqrt()">√</button>
+      <div id="status" class="status-strip">
+        <span class="status-pip"></span>
+        <span class="status-text">Ready</span>
+      </div>
 
-            <button class="math-key" data-token="sin()">sin</button>
-            <button class="math-key" data-token="cos()">cos</button>
-            <button class="math-key" data-token="tan()">tan</button>
-            <button class="math-key" data-token="+">+</button>
-            <button class="math-key" data-token="-">−</button>
-            <button class="math-key" data-token="^">^</button>
+      <div class="divider"></div>
 
-            <button class="math-key" data-token="7">7</button>
-            <button class="math-key" data-token="8">8</button>
-            <button class="math-key" data-token="9">9</button>
-            <button class="math-key" data-token="*">×</button>
-            <button class="math-key" data-token="/">÷</button>
-            <button class="math-key" data-token="=">=</button>
+      <div class="palette-header small">
+        <span class="palette-index">02</span>
+        <h2 class="palette-title">Gallery</h2>
+        <span id="eqCount" class="count-chip">0</span>
+      </div>
+      <ul id="eqList" class="object-list"></ul>
+      <div id="emptyState" class="empty-plate">
+        <span class="empty-number">00</span>
+        <p>No equations yet</p>
+      </div>
 
-            <button class="math-key" data-token="4">4</button>
-            <button class="math-key" data-token="5">5</button>
-            <button class="math-key" data-token="6">6</button>
-            <button class="math-key" data-token="(">(</button>
-            <button class="math-key" data-token=")">)</button>
-            <button class="math-key" data-token=",">,</button>
+      <div class="divider"></div>
 
-            <button class="math-key" data-token="1">1</button>
-            <button class="math-key" data-token="2">2</button>
-            <button class="math-key" data-token="3">3</button>
-            <button class="math-key" data-token="ln()">ln</button>
-            <button class="math-key" data-token="log()">log</button>
-            <button class="math-key" data-token="abs()">abs</button>
+      <div class="palette-header small">
+        <span class="palette-index">03</span>
+        <h2 class="palette-title">Parameters</h2>
+      </div>
+      <div id="paramList" class="parameter-list"></div>
 
-            <button class="math-key" data-token="0">0</button>
-            <button class="math-key" data-token=".">.</button>
-            <button class="math-key action" data-action="left">←</button>
-            <button class="math-key action" data-action="right">→</button>
-            <button class="math-key action" data-action="backspace">⌫</button>
-            <button class="math-key action" data-action="clear">AC</button>
-          </div>
-        </section>
-
-        <section class="palette-section gallery">
-          <div class="section-eyebrow">
-            <span class="eyebrow-index">03</span>
-            <span class="eyebrow-line"></span>
-            <span id="eqCount" class="count-chip">0</span>
-          </div>
-          <h2 class="section-title">Gallery</h2>
-          <ul id="eqList" class="object-list"></ul>
-          <div id="emptyState" class="empty-plate">
-            <span class="empty-number">00</span>
-            <p>No equations yet</p>
-          </div>
-        </section>
-
-        <section class="palette-section parameters">
-          <div class="section-eyebrow">
-            <span class="eyebrow-index">04</span>
-            <span class="eyebrow-line"></span>
-          </div>
-          <h2 class="section-title">Parameters</h2>
-          <div id="paramList" class="parameter-list"></div>
-        </section>
-
-        <section class="palette-section view-controls">
-          <div class="section-eyebrow">
-            <span class="eyebrow-index">05</span>
-            <span class="eyebrow-line"></span>
-          </div>
-          <h2 class="section-title">View</h2>
-          <div class="toggle-list">
-            <label class="toggle-item">
-              <span>Reference grid</span>
-              <input id="toggleGrid" type="checkbox" checked />
-              <span class="toggle-switch"></span>
-            </label>
-            <label class="toggle-item">
-              <span>Ground plane</span>
-              <input id="togglePlane" type="checkbox" checked />
-              <span class="toggle-switch"></span>
-            </label>
-            <label class="toggle-item">
-              <span>Legend overlay</span>
-              <input id="toggleLegend" type="checkbox" checked />
-              <span class="toggle-switch"></span>
-            </label>
-          </div>
-        </section>
+      <div class="view-controls-compact">
+        <label class="mini-toggle">
+          <input id="toggleGrid" type="checkbox" checked />
+          <span class="toggle-switch"></span>
+          <span>Grid</span>
+        </label>
+        <label class="mini-toggle">
+          <input id="togglePlane" type="checkbox" checked />
+          <span class="toggle-switch"></span>
+          <span>Plane</span>
+        </label>
+        <label class="mini-toggle">
+          <input id="toggleLegend" type="checkbox" checked />
+          <span class="toggle-switch"></span>
+          <span>Legend</span>
+        </label>
       </div>
     </aside>
 
     <main class="stage">
       <div id="viewer"></div>
-
       <div class="stage-frame" aria-hidden="true">
         <div class="frame-corner tl"></div>
         <div class="frame-corner tr"></div>
         <div class="frame-corner bl"></div>
         <div class="frame-corner br"></div>
       </div>
-
       <div id="miniAxis" class="orientation-plate">
         <span class="plate-label">XYZ</span>
       </div>
-
       <div id="legend" class="equation-legend">
         <div class="legend-title">
           <span class="legend-index">Eq</span>
           <span>Equations</span>
         </div>
       </div>
-
       <div class="stage-tools">
         <button id="zoomInBtn" type="button" aria-label="放大">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
