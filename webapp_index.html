@@ -3,46 +3,96 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>方程可视化 3D</title>
-  <link rel="stylesheet" href="/styles.css" />
+  <title>MATH·VISOR — 方程可视化终端</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/webapp_styles.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand-wrap">
-      <button id="navToggleBtn" class="nav-btn" type="button" aria-label="切换侧边栏">☰</button>
-      <div class="brand-main">方程可视化 · 3D 计算器</div>
+  <!-- 终端环境层 -->
+  <div class="crt-overlay" aria-hidden="true"></div>
+  <div class="scanline" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+  <div class="grid-floor" aria-hidden="true"></div>
+
+  <header class="hud-topbar">
+    <div class="hud-left">
+      <button id="navToggleBtn" class="hud-btn icon" type="button" aria-label="切换侧边栏">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+      <div class="brand-lockup">
+        <div class="brand-mark">MATH·VISOR</div>
+        <div class="brand-sub">方程可视化终端</div>
+      </div>
     </div>
-    <div class="top-actions">
-      <button id="resetViewBtnTop" class="ghost-btn" type="button">重置视角</button>
+
+    <div class="hud-center">
+      <div class="hud-pill">
+        <span class="status-diamond active"></span>
+        <span id="systemStatus">系统在线</span>
+      </div>
+    </div>
+
+    <div class="hud-right">
+      <button id="resetViewBtnTop" class="hud-btn" type="button">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+          <path d="M3 3v5h5" />
+        </svg>
+        <span>重置视角</span>
+      </button>
     </div>
   </header>
 
   <div class="layout">
-    <aside class="side-panel">
-      <section class="panel-card algebra-only">
-        <div class="input-row">
-          <input id="eqInput" type="text" placeholder="输入方程，如 z=sqrt(4-x^2-y^2)" />
-          <button id="addBtn" class="primary-btn" type="button">添加</button>
+    <aside class="terminal-panel">
+      <!-- 主输入模块 -->
+      <section class="panel-card primary-card">
+        <div class="card-corner tl"></div>
+        <div class="card-corner tr"></div>
+        <div class="card-corner bl"></div>
+        <div class="card-corner br"></div>
+
+        <div class="panel-header">
+          <span class="panel-id">01</span>
+          <span class="panel-title">方程输入</span>
         </div>
-        <div class="action-row">
-          <button id="drawBtn" class="primary-btn" type="button">绘制</button>
-          <button id="clearBtn" class="danger-btn" type="button">清空</button>
+
+        <div class="input-cluster">
+          <div class="input-row">
+            <input id="eqInput" type="text" placeholder="输入方程，如 z=sqrt(4-x^2-y^2)" autocomplete="off" />
+            <button id="addBtn" class="hud-btn primary" type="button">添加</button>
+          </div>
+          <div class="action-row">
+            <button id="drawBtn" class="hud-btn primary" type="button">绘制</button>
+            <button id="clearBtn" class="hud-btn danger" type="button">清空</button>
+          </div>
         </div>
+
         <div class="quality-row">
-          <label for="qualitySel">画质</label>
+          <label for="qualitySel">渲染精度</label>
           <select id="qualitySel">
-            <option value="1" selected>标准（流畅）</option>
-            <option value="2">高清</option>
-            <option value="3">超清</option>
+            <option value="1" selected>标准 · 实时</option>
+            <option value="2">高清 · 平衡</option>
+            <option value="3">超清 · 细腻</option>
           </select>
         </div>
-        <div id="status" class="status">准备就绪</div>
+
+        <div id="status" class="status-line">
+          <span class="status-dot"></span>
+          <span class="status-text">准备就绪</span>
+        </div>
       </section>
 
-      <section id="inputPad" class="panel-card input-pad hidden">
-        <div class="input-pad-head">
-          <span>输入面板</span>
-          <button id="closeInputPadBtn" class="ghost-btn" type="button">收起</button>
+      <!-- 数学键盘 -->
+      <section id="inputPad" class="panel-card pad-card">
+        <div class="panel-header compact">
+          <span class="panel-id">02</span>
+          <span class="panel-title">数学键盘</span>
+          <button id="closeInputPadBtn" class="hud-btn ghost micro" type="button">收起</button>
         </div>
         <div class="input-pad-grid">
           <button class="pad-key" data-token="x">x</button>
@@ -85,56 +135,104 @@
           <button class="pad-key action" data-action="left">←</button>
           <button class="pad-key action" data-action="right">→</button>
           <button class="pad-key action" data-action="backspace">⌫</button>
-          <button class="pad-key action" data-action="clear">清空</button>
+          <button class="pad-key action" data-action="clear">AC</button>
         </div>
       </section>
 
-      <section class="panel-card algebra-only">
-        <div class="section-title">
-          方程列表
+      <!-- 方程列表 -->
+      <section class="panel-card list-card">
+        <div class="panel-header">
+          <span class="panel-id">03</span>
+          <span class="panel-title">实验队列</span>
+          <span id="eqCount" class="panel-badge">0</span>
         </div>
         <ul id="eqList" class="eq-list"></ul>
+        <div id="emptyState" class="empty-state">
+          <div class="empty-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+              <path d="M12 2v20M2 12h20" />
+            </svg>
+          </div>
+          <p>暂无方程</p>
+          <span>输入一个方程开始实验</span>
+        </div>
       </section>
 
-      <section class="panel-card algebra-only">
-        <div class="section-title">参数</div>
+      <!-- 参数 -->
+      <section class="panel-card params-card">
+        <div class="panel-header">
+          <span class="panel-id">04</span>
+          <span class="panel-title">参数调制</span>
+        </div>
         <div id="paramList" class="param-list"></div>
       </section>
 
-      <section class="panel-card">
-        <div class="section-title">显示设置</div>
+      <!-- 显示设置 -->
+      <section class="panel-card settings-card">
+        <div class="panel-header">
+          <span class="panel-id">05</span>
+          <span class="panel-title">视图控制</span>
+        </div>
         <div class="settings-block">
           <label class="setting-item">
-            <span>网格</span>
+            <span>参考网格</span>
             <input id="toggleGrid" type="checkbox" checked />
           </label>
           <label class="setting-item">
-            <span>参考平面</span>
+            <span>基准平面</span>
             <input id="togglePlane" type="checkbox" checked />
           </label>
           <label class="setting-item">
-            <span>图例</span>
+            <span>图例覆盖</span>
             <input id="toggleLegend" type="checkbox" checked />
           </label>
         </div>
       </section>
-
     </aside>
 
     <main class="viewer-wrap">
       <div id="viewer"></div>
-      <div id="miniAxis" class="mini-axis"></div>
-      <div id="legend" class="legend">
-        <h3>方程列表</h3>
+
+      <!-- HUD 角标 -->
+      <div class="viewer-hud" aria-hidden="true">
+        <div class="hud-corner tl"><span></span><span></span></div>
+        <div class="hud-corner tr"><span></span><span></span></div>
+        <div class="hud-corner bl"><span></span><span></span></div>
+        <div class="hud-corner br"><span></span><span></span></div>
       </div>
+
+      <div id="miniAxis" class="mini-axis">
+        <div class="mini-axis-label">XYZ</div>
+      </div>
+
+      <div id="legend" class="legend">
+        <div class="legend-header">
+          <span class="legend-id">EQ</span>
+          <h3>方程列表</h3>
+        </div>
+      </div>
+
       <div class="view-tools">
-        <button id="zoomInBtn" type="button">+</button>
-        <button id="zoomOutBtn" type="button">−</button>
-        <button id="resetViewBtn" type="button">⌂</button>
+        <button id="zoomInBtn" type="button" aria-label="放大">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </button>
+        <button id="zoomOutBtn" type="button" aria-label="缩小">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 12h14" />
+          </svg>
+        </button>
+        <button id="resetViewBtn" type="button" aria-label="重置视角">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+            <path d="M3 3v5h5" />
+          </svg>
+        </button>
       </div>
     </main>
   </div>
 
-  <script type="module" src="/app.js"></script>
+  <script type="module" src="/webapp_app.js"></script>
 </body>
 </html>

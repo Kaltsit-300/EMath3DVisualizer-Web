@@ -90,8 +90,15 @@ function rendererPixelRatioCap() {
   return 1.0;
 }
 
-function setStatus(text) {
-  statusEl.textContent = text;
+function setStatus(text, type = "idle") {
+  const dot = statusEl.querySelector(".status-dot");
+  const txt = statusEl.querySelector(".status-text");
+  if (txt) txt.textContent = text;
+  if (dot) {
+    dot.classList.remove("working", "error");
+    if (type === "working") dot.classList.add("working");
+    if (type === "error") dot.classList.add("error");
+  }
 }
 
 function esc(text) {
@@ -1498,7 +1505,7 @@ async function ensure3D() {
     view.started = true;
     return true;
   } catch (err) {
-    setStatus(`3D 引擎加载失败: ${String(err)}`);
+    setStatus(`3D 引擎加载失败: ${String(err)}`, "error");
     return false;
   }
 }
@@ -1531,17 +1538,27 @@ function renderFormulaInto(container, eqText) {
 
 async function renderEqList() {
   eqList.innerHTML = "";
+  const emptyEl = document.getElementById("emptyState");
+  const countEl = document.getElementById("eqCount");
+  if (emptyEl) emptyEl.classList.toggle("hidden", state.equations.length > 0);
+  if (countEl) countEl.textContent = String(state.equations.length);
+
   for (const [idx, eq] of state.equations.entries()) {
     const li = document.createElement("li");
     li.className = "eq-item";
     li.innerHTML = `
       <span class="badge" style="background:${eq.color};box-shadow:0 0 8px ${eq.color}"></span>
       <div class="eq-text"></div>
-      <button class="icon-del" title="删除">✕</button>
+      <button class="icon-del" title="删除">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
     `;
     const txt = li.querySelector(".eq-text");
     txt.textContent = eq.label || eq.text;
-    li.querySelector(".icon-del").onclick = () => removeEquation(eq.id);
+    li.querySelector(".icon-del").onclick = (e) => {
+      e.stopPropagation();
+      removeEquation(eq.id);
+    };
     eqList.appendChild(li);
   }
   for (const [idx, eq] of state.equations.entries()) {
@@ -1556,7 +1573,12 @@ async function renderEqList() {
 }
 
 async function renderLegend() {
-  legendEl.innerHTML = "<h3>方程列表</h3>";
+  legendEl.innerHTML = `
+    <div class="legend-header">
+      <span class="legend-id">EQ</span>
+      <h3>方程列表</h3>
+    </div>
+  `;
   for (const [idx, eq] of state.equations.entries()) {
     const row = document.createElement("div");
     row.className = "legend-row";
@@ -1945,7 +1967,7 @@ async function drawAll(mode = "manual") {
   if (!state.equations.length) {
     clearAllMeshes();
     state.hasDrawn = false;
-    setStatus("请先添加方程");
+    setStatus("请先添加方程", "error");
     return;
   }
 
@@ -1960,7 +1982,7 @@ async function drawAll(mode = "manual") {
 
   clearTimeout(state.highQualityTimer);
   const seq = ++state.drawSeq;
-  setStatus(mode === "manual" ? "正在绘制..." : "参数更新中...");
+  setStatus(mode === "manual" ? "正在绘制..." : "参数更新中...", "working");
   clearAllMeshes();
   clearIntersections();
 
@@ -2023,7 +2045,7 @@ async function drawAll(mode = "manual") {
   if (seq !== state.drawSeq) return;
 
   if (localDrawn === 0 && workerEqs.length === 0) {
-    setStatus("当前视图内没有可绘制几何");
+    setStatus("当前视图内没有可绘制几何", "error");
   } else if (localDrawn > 0 && workerEqs.length === 0) {
     setStatus(`绘制完成 (${localDrawn}/${localDrawn})`);
   }
@@ -2069,10 +2091,10 @@ async function addEquationFromInput() {
   if (!text) return;
 
   try {
-    setStatus("正在解析方程...");
+    setStatus("正在解析方程...", "working");
     const data = await parseEquation(text);
     if (!data.ok || !data.parsed) {
-      setStatus("该输入不是可绘制几何方程");
+      setStatus("该输入不是可绘制几何方程", "error");
       return;
     }
 
@@ -2098,7 +2120,7 @@ async function addEquationFromInput() {
     renderParamList();
     setStatus(`已添加 ${label || text}，点击“绘制”显示图形`);
   } catch (err) {
-    setStatus(`解析失败: ${String(err)}`);
+    setStatus(`解析失败: ${String(err)}`, "error");
   }
 }
 
