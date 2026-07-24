@@ -95,7 +95,7 @@
         // Post each result individually so the main thread can process
         // them as they arrive (out-of-order).
         for (const r of results) {
-          self.postMessage({ type: "meshResult", id: r.id, data: r.data, error: r.error });
+          self.postMessage({ type: "meshResult", id: r.id, workerSeq: msg.workerSeq, data: r.data, error: r.error });
         }
       } catch (err) {
         self.postMessage({ type: "error", message: String(err) });

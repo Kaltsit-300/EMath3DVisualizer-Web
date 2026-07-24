@@ -653,7 +653,7 @@ function scheduleWorkerMeshFetch(equations, seq, opts) {
     quality: Number(quality) || 1,
   }));
 
-  state.meshWorker.postMessage({ type: "fetchAll", tasks });
+  state.meshWorker.postMessage({ type: "fetchAll", workerSeq: seq, tasks });
 }
 
 /** Main-thread fallback when Web Worker is not available. */
@@ -727,7 +727,7 @@ function scheduleWorkerHighQualityFetch(equations, seq) {
     quality: state.quality,
   }));
 
-  state.meshWorker.postMessage({ type: "fetchAll", tasks });
+  state.meshWorker.postMessage({ type: "fetchAll", workerSeq: seq, tasks });
 }
 
 /** Main-thread fallback for high-quality fetch. */
