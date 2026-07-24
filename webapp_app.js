@@ -55,6 +55,7 @@ const resetViewBtn = document.getElementById("resetViewBtn");
 const resetViewBtnTop = document.getElementById("resetViewBtnTop");
 const inputPad = document.getElementById("inputPad");
 const closeInputPadBtn = document.getElementById("closeInputPadBtn");
+const toggleKeyboardBtn = document.getElementById("toggleKeyboardBtn");
 const miniAxisEl = document.getElementById("miniAxis");
 const navToggleBtn = document.getElementById("navToggleBtn");
 const toggleGrid = document.getElementById("toggleGrid");
@@ -91,7 +92,7 @@ function rendererPixelRatioCap() {
 }
 
 function setStatus(text, type = "idle") {
-  const dot = statusEl.querySelector(".status-dot");
+  const dot = statusEl.querySelector(".status-pip");
   const txt = statusEl.querySelector(".status-text");
   if (txt) txt.textContent = text;
   if (dot) {
@@ -2255,7 +2256,7 @@ function bindEvents() {
   resetViewBtnTop.onclick = resetView;
 
   if (inputPad) {
-    inputPad.querySelectorAll(".pad-key").forEach((btn) => {
+    inputPad.querySelectorAll(".math-key").forEach((btn) => {
       btn.addEventListener("click", () => {
         const action = btn.dataset.action || "";
         if (action === "left") {
@@ -2281,6 +2282,13 @@ function bindEvents() {
   }
 
   if (closeInputPadBtn) closeInputPadBtn.onclick = hideInputPad;
+
+  if (toggleKeyboardBtn && inputPad) {
+    toggleKeyboardBtn.onclick = () => {
+      inputPad.classList.toggle("hidden");
+      toggleKeyboardBtn.classList.toggle("active", !inputPad.classList.contains("hidden"));
+    };
+  }
 
   document.addEventListener("pointerdown", (evt) => {
     if (!inputPad || inputPad.classList.contains("hidden")) return;
