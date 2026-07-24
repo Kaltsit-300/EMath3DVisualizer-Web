@@ -22,6 +22,15 @@
   axisTickInterval: null,
   axisVisibleLength: null,
   labelCache: new Map(),
+  // LOD state management
+  lodObjects: new Map(),  // Map<eqId, THREE.LOD>
+  lodPending: new Map(),  // Map<eqId, Promise>
+  lodEnabled: true,  // Enable LOD by default
+  // Web Worker state
+  meshWorker: null,
+  workerDrawSeq: 0,       // drawSeq snapshot for in-flight worker results
+  workerPending: 0,        // how many worker results we are still waiting for
+  workerFallback: false,   // true if Worker is not supported / failed
 };
 
 const DEFAULT_VIEW_RADIUS = 10;
@@ -250,17 +259,202 @@ function replaceEquationMesh(eq, mesh) {
   obj.userData.localOnly = !!mesh.meta?.local_only;
   view.meshGroup.add(obj);
   state.meshById.set(eq.id, obj);
+  // 若为精确平面占位对象，注册到共享 InstancedMesh（setColorAt 设置每实例颜色）
+  if (obj.userData.planeInstance) {
+    setPlaneInstance(eq.id, obj.userData.planeMatrix, obj.userData.planeColor);
+  }
   return true;
+}
+
+function createLODObject(eq, lowMesh, highMesh) {
+  const THREE = view.THREE;
+  if (!THREE || !view.meshGroup) return null;
+  
+  // 精确平面走共享 InstancedMesh 路径（2 个三角形，无需 LOD），
+  // buildMeshObject 会返回 planeInstance 占位组，不能装进 THREE.LOD。
+  const lodGeomType = lowMesh?.meta?.geometry_type || highMesh?.meta?.geometry_type || "";
+  if (lodGeomType === "plane") return null;
+
+  const lod = new THREE.LOD();
+  
+  // Create low detail mesh (visible at far distance)
+  const lowObj = buildMeshObject(lowMesh, eq.color, true);
+  if (lowObj) {
+    // Calculate LOD distances based on view radius
+    const baseDistance = state.viewRadius * 2.0;  // Far threshold
+    lod.addLevel(lowObj, baseDistance);
+  }
+  
+  // Create high detail mesh (visible at close distance)
+  const highObj = buildMeshObject(highMesh, eq.color, false);
+  if (highObj) {
+    // High detail visible when camera is close
+    const nearDistance = state.viewRadius * 0.8;  // Near threshold
+    lod.addLevel(highObj, nearDistance);
+  }
+  
+  lod.userData.eqId = eq.id;
+  lod.userData.geometryType = lowMesh.meta?.geometry_type || highMesh.meta?.geometry_type || "";
+  
+  return lod;
+}
+
+async function loadLODForEquation(eq, seq) {
+  if (!state.lodEnabled || isFrontendExactPlaneEquation(eq)) return false;
+  
+  // Check if already pending
+  if (state.lodPending.has(eq.id)) return false;
+  
+  const THREE = view.THREE;
+  if (!THREE) return false;
+  
+  try {
+    // Fetch both low and high quality meshes in parallel
+    const [lowData, highData] = await Promise.all([
+      fetchMeshLOD(eq, 1),  // quality=1 -> low resolution
+      fetchMeshLOD(eq, 3),  // quality=3 -> high resolution
+    ]);
+    
+    if (seq !== state.drawSeq) return false;
+    if (!equationStillExists(eq.id)) return false;
+    
+    const lowMesh = forceExactPlaneMeta(lowData.mesh, eq.text);
+    const highMesh = forceExactPlaneMeta(highData.mesh, eq.text);
+    
+    if (!meshHasRenderableGeometry(lowMesh) || !meshHasRenderableGeometry(highMesh)) {
+      return false;
+    }
+    
+    // Create LOD object
+    const lodObj = createLODObject(eq, lowMesh, highMesh);
+    if (!lodObj) return false;
+    
+    // Remove old mesh and add LOD object
+    removeMeshById(eq.id);
+    view.meshGroup.add(lodObj);
+    state.meshById.set(eq.id, lodObj);
+    state.lodObjects.set(eq.id, lodObj);
+    
+    return true;
+  } catch (err) {
+    console.warn(`LOD load failed for ${eq.text}:`, err);
+    return false;
+  }
+}
+
+function updateAllLODs() {
+  if (!state.lodEnabled || !view.camera) return;
+  
+  for (const [eqId, lod] of state.lodObjects.entries()) {
+    if (lod && typeof lod.update === 'function') {
+      lod.update(view.camera);
+    }
+  }
 }
 
 function disposeSceneObjects(objects, parent) {
   for (const obj of objects || []) {
     if (parent && obj?.parent === parent) parent.remove(obj);
     obj?.traverse?.((child) => {
-      if (child.geometry) child.geometry.dispose();
+      if (child.geometry && !child.userData?.sharedGeometry) child.geometry.dispose();
       if (child.material) child.material.dispose();
     });
   }
+}
+
+// ---------------------------------------------------------------------------
+// Shared geometry & InstancedMesh optimization
+// 相同几何类型复用顶点数据：所有精确平面共用一个 1x1 单位 PlaneGeometry，
+// 通过 InstancedMesh 的每实例矩阵（旋转+平移+缩放）和 setColorAt 区分。
+// ---------------------------------------------------------------------------
+const sharedGeometries = {
+  unitPlane: null, // 1x1 PlaneGeometry，被地面平面 + 所有精确平面实例共享
+};
+
+function getSharedUnitPlane() {
+  const THREE = view.THREE;
+  if (!sharedGeometries.unitPlane) {
+    sharedGeometries.unitPlane = new THREE.PlaneGeometry(1, 1, 1, 1);
+  }
+  return sharedGeometries.unitPlane;
+}
+
+const planeInstances = {
+  mesh: null,      // 单个 THREE.InstancedMesh，承载所有精确平面
+  capacity: 0,
+  entries: new Map(), // eqId -> { matrix: THREE.Matrix4, color: THREE.Color }
+};
+
+function _createPlaneInstancedMaterial() {
+  const THREE = view.THREE;
+  // 基色为白色，实际颜色由 setColorAt 提供（instanceColor 与 material.color 相乘）。
+  // 注意：emissive 无法逐实例设置，因此实例化平面不带自发光（视觉差异极小）。
+  return new THREE.MeshPhysicalMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.18,
+    side: THREE.DoubleSide,
+    roughness: 0.45,
+    metalness: 0.35,
+    clearcoat: 0.45,
+    depthWrite: false,
+    depthTest: true,
+    blending: THREE.NormalBlending,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -2,
+  });
+}
+
+function ensurePlaneInstanceCapacity(count) {
+  const THREE = view.THREE;
+  if (planeInstances.mesh && planeInstances.capacity >= count) return planeInstances.mesh;
+  const old = planeInstances.mesh;
+  if (old) {
+    old.parent?.remove(old);
+    old.material?.dispose?.();
+    old.dispose?.(); // 仅释放实例属性缓冲；共享 geometry 不 dispose
+  }
+  const capacity = Math.max(4, Math.ceil(count * 1.5));
+  const im = new THREE.InstancedMesh(getSharedUnitPlane(), _createPlaneInstancedMaterial(), capacity);
+  im.count = 0;
+  im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  im.renderOrder = 10;
+  im.frustumCulled = false; // 实例位置由矩阵决定，跳过过期包围盒剔除
+  im.userData.sharedGeometry = true;
+  planeInstances.mesh = im;
+  planeInstances.capacity = capacity;
+  if (view.meshGroup) view.meshGroup.add(im);
+  return im;
+}
+
+function rebuildPlaneInstances() {
+  if (!view.THREE) return;
+  const count = planeInstances.entries.size;
+  if (!count) {
+    if (planeInstances.mesh) planeInstances.mesh.count = 0;
+    return;
+  }
+  const im = ensurePlaneInstanceCapacity(count);
+  if (view.meshGroup && im.parent !== view.meshGroup) view.meshGroup.add(im);
+  let i = 0;
+  for (const entry of planeInstances.entries.values()) {
+    im.setMatrixAt(i, entry.matrix);
+    im.setColorAt(i, entry.color);
+    i += 1;
+  }
+  im.count = i;
+  im.instanceMatrix.needsUpdate = true;
+  if (im.instanceColor) im.instanceColor.needsUpdate = true;
+}
+
+function setPlaneInstance(eqId, matrix, color) {
+  planeInstances.entries.set(eqId, { matrix, color });
+  rebuildPlaneInstances();
+}
+
+function removePlaneInstance(eqId) {
+  if (planeInstances.entries.delete(eqId)) rebuildPlaneInstances();
 }
 
 function replaceIntersectionObjects(objects) {
@@ -318,6 +512,236 @@ function paramsObject() {
   const out = {};
   for (const [k, v] of state.params.entries()) out[k] = v.value;
   return out;
+}
+
+// ---------- Web Worker for mesh fetching ----------
+
+function initMeshWorker() {
+  if (state.meshWorker || state.workerFallback) return;
+  try {
+    const worker = new Worker("webapp_mesh_worker.js");
+    worker.onmessage = onWorkerMessage;
+    worker.onerror = (err) => {
+      console.warn("[Worker] mesh worker error, falling back to main-thread fetch:", err);
+      worker.terminate();
+      state.meshWorker = null;
+      state.workerFallback = true;
+    };
+    state.meshWorker = worker;
+    console.log("[Worker] mesh worker initialised");
+  } catch (err) {
+    console.warn("[Worker] Web Worker not supported, using main-thread fetch:", err);
+    state.workerFallback = true;
+  }
+}
+
+function onWorkerMessage(evt) {
+  const msg = evt.data;
+
+  // --- individual mesh result (may arrive out-of-order) ---
+  if (msg.type === "meshResult") {
+    const { id, data, error } = msg;
+    if (id === undefined) return;
+    // Ignore results from a stale draw sequence
+    if (msg.workerSeq !== state.workerDrawSeq) return;
+    if (error || !data) {
+      console.warn(`[Worker] mesh result error for ${id}:`, error);
+    } else {
+      applyWorkerMeshResult(id, data);
+    }
+    state.workerPending = Math.max(0, state.workerPending - 1);
+    if (state.workerPending === 0) onAllWorkerResultsIn(state.workerDrawSeq);
+    return;
+  }
+
+  // --- batch fetch complete signal ---
+  if (msg.type === "fetchAllDone") {
+    // We track completion via the pending counter instead.
+    return;
+  }
+
+  // --- unexpected message ---
+  if (msg.type === "error") {
+    console.error("[Worker] unexpected error:", msg.message);
+  }
+}
+
+/** Apply one mesh result received from the worker (out-of-order safe). */
+function applyWorkerMeshResult(eqId, data) {
+  const eq = state.equations.find((e) => e.id === eqId);
+  if (!eq || !equationStillExists(eqId)) return;
+  const mesh = forceExactPlaneMeta(data.mesh || {}, eq.text);
+  if (!meshHasRenderableGeometry(mesh)) return;
+  if (replaceEquationMesh(eq, mesh)) {
+    const obj = state.meshById.get(eqId);
+    if (obj) obj.userData.isPreview = true;
+  }
+}
+
+/** Called when all worker results for a drawSeq have arrived. */
+function onAllWorkerResultsIn(seq) {
+  if (seq !== state.drawSeq) return;
+  for (const eq of state.equations) {
+    if (isFrontendExactPlaneEquation(eq)) continue;
+    const obj = state.meshById.get(eq.id);
+    if (obj) obj.userData.isPreview = false;
+  }
+  
+  // Load LOD for all equations in background if enabled
+  if (state.lodEnabled && state.quality >= 2) {
+    setTimeout(() => {
+      if (seq !== state.drawSeq) return;
+      for (const eq of state.equations) {
+        if (!isFrontendExactPlaneEquation(eq)) {
+          loadLODForEquation(eq, seq);
+        }
+      }
+    }, 800);
+  } else if (state.quality >= 2) {
+    // Fallback to high-quality version if LOD disabled
+    clearTimeout(state.highQualityTimer);
+    state.highQualityTimer = setTimeout(() => {
+      if (seq !== state.drawSeq) return;
+      loadHighQualityVersion(seq);
+    }, 500);
+  } else {
+    setStatus(`绘制完成 (${state.equations.length}/${state.equations.length})`);
+  }
+}
+
+/**
+ * Send mesh fetch tasks to the Web Worker.
+ * Falls back to main-thread sequential fetch if Worker is unavailable.
+ */
+function scheduleWorkerMeshFetch(equations, seq, opts) {
+  const { lod, quality, fetchParams } = opts;
+
+  if (state.workerFallback || !state.meshWorker) {
+    scheduleFallbackMeshFetch(equations, seq, opts);
+    return;
+  }
+
+  state.workerDrawSeq = seq;
+  state.workerPending = equations.length;
+
+  const tasks = equations.map((eq) => ({
+    id: eq.id,
+    equation: eq.text,
+    params: fetchParams,
+    view_radius: currentRequestViewRadius(),
+    lod: !!lod,
+    quality: Number(quality) || 1,
+  }));
+
+  state.meshWorker.postMessage({ type: "fetchAll", tasks });
+}
+
+/** Main-thread fallback when Web Worker is not available. */
+async function scheduleFallbackMeshFetch(equations, seq, opts) {
+  const { lod, quality, fetchParams } = opts;
+  for (const eq of equations) {
+    if (seq !== state.drawSeq) return;
+    try {
+      const resp = await fetch(`${apiBase()}/api/mesh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          equation: eq.text,
+          params: fetchParams,
+          view_radius: currentRequestViewRadius(),
+          lod: !!lod,
+          quality: Number(quality) || 1,
+        }),
+      });
+      if (!resp.ok) continue;
+      const data = await resp.json();
+      if (seq !== state.drawSeq) return;
+      if (!equationStillExists(eq.id)) continue;
+      const mesh = forceExactPlaneMeta(data.mesh || {}, eq.text);
+      if (!meshHasRenderableGeometry(mesh)) continue;
+      if (replaceEquationMesh(eq, mesh)) {
+        const obj = state.meshById.get(eq.id);
+        if (obj) obj.userData.isPreview = true;
+      }
+    } catch (err) {
+      console.warn("[Fallback] mesh fetch error:", err);
+    }
+  }
+  if (seq !== state.drawSeq) return;
+  for (const eq of equations) {
+    const obj = state.meshById.get(eq.id);
+    if (obj) obj.userData.isPreview = false;
+  }
+  if (seq !== state.drawSeq) return;
+  if (state.quality >= 2) {
+    clearTimeout(state.highQualityTimer);
+    state.highQualityTimer = setTimeout(() => {
+      if (seq !== state.drawSeq) return;
+      loadHighQualityVersion(seq);
+    }, 500);
+  } else {
+    setStatus(`绘制完成 (${equations.length}/${equations.length})`);
+  }
+}
+
+/**
+ * Send HIGH-QUALITY mesh fetch tasks to the Web Worker.
+ * Falls back to main-thread sequential fetch if Worker is unavailable.
+ */
+function scheduleWorkerHighQualityFetch(equations, seq) {
+  if (state.workerFallback || !state.meshWorker) {
+    scheduleFallbackHighQualityFetch(equations, seq);
+    return;
+  }
+
+  state.workerDrawSeq = seq;
+  state.workerPending = equations.length;
+
+  const tasks = equations.map((eq) => ({
+    id: eq.id,
+    equation: eq.text,
+    params: paramsObject(),
+    view_radius: currentRequestViewRadius(),
+    lod: false,
+    quality: state.quality,
+  }));
+
+  state.meshWorker.postMessage({ type: "fetchAll", tasks });
+}
+
+/** Main-thread fallback for high-quality fetch. */
+async function scheduleFallbackHighQualityFetch(equations, seq) {
+  for (const eq of equations) {
+    if (seq !== state.drawSeq) return;
+    if (isFrontendExactPlaneEquation(eq)) continue;
+    try {
+      const resp = await fetch(`${apiBase()}/api/mesh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          equation: eq.text,
+          params: paramsObject(),
+          view_radius: currentRequestViewRadius(),
+          lod: false,
+          quality: state.quality,
+        }),
+      });
+      if (!resp.ok) continue;
+      const data = await resp.json();
+      if (seq !== state.drawSeq) return;
+      if (!equationStillExists(eq.id)) continue;
+      const mesh = forceExactPlaneMeta(data.mesh || {}, eq.text);
+      if (!meshHasRenderableGeometry(mesh)) continue;
+      if (replaceEquationMesh(eq, mesh)) {
+        const obj = state.meshById.get(eq.id);
+        if (obj) obj.userData.isPreview = false;
+      }
+    } catch (err) {
+      console.warn("[Fallback] high-quality mesh fetch error:", err);
+    }
+  }
+  if (seq !== state.drawSeq) return;
+  setStatus(`高质量优化完成 (${equations.length}/${equations.length})`);
 }
 
 function currentRequestViewRadius() {
@@ -440,6 +864,12 @@ function createAxisGroup(THREE, length = 10, opts = {}) {
   if (showNumbers) {
     const numberColor = "#e8ecf3";
     const nTicks = Math.floor((visibleLength + 1e-9) / tickInterval);
+    // 刻度线段合并优化：每轴用一个 LineSegments（单 BufferGeometry 承载全部刻度顶点），
+    // 代替每个刻度一个独立 Line 对象，将 3×N 次 draw call 降为 3 次。
+    // （对 2 顶点线段而言，顶点合并比 InstancedBufferGeometry 更简单且收益等价）
+    const xTickPts = [];
+    const yTickPts = [];
+    const zTickPts = [];
     for (let k = -nTicks; k <= nTicks; k += 1) {
       const i = k * tickInterval;
       if (Math.abs(i) > visibleLength + tickInterval * 0.05) continue;
@@ -447,29 +877,34 @@ function createAxisGroup(THREE, length = 10, opts = {}) {
       const numberText = formatNumber(i);
 
       // X轴刻度
-      const xTickStart = new THREE.Vector3(i, -tickSize / 2, 0);
-      const xTickEnd = new THREE.Vector3(i, tickSize / 2, 0);
-      group.add(makeLine(xTickStart, xTickEnd, 0xe53935, lineOpacity * 0.7));
+      xTickPts.push(i, -tickSize / 2, 0, i, tickSize / 2, 0);
       const xNum = makeAxisLabelSprite(numberText, numberColor, THREE, numberFontSize, numberScale, numberScale * 0.5);
       xNum.position.set(i, -numberDistance, 0);
       group.add(xNum);
 
       // Y轴刻度
-      const yTickStart = new THREE.Vector3(-tickSize / 2, i, 0);
-      const yTickEnd = new THREE.Vector3(tickSize / 2, i, 0);
-      group.add(makeLine(yTickStart, yTickEnd, 0x22a945, lineOpacity * 0.7));
+      yTickPts.push(-tickSize / 2, i, 0, tickSize / 2, i, 0);
       const yNum = makeAxisLabelSprite(numberText, numberColor, THREE, numberFontSize, numberScale, numberScale * 0.5);
       yNum.position.set(-numberDistance, i, 0);
       group.add(yNum);
 
       // Z轴刻度
-      const zTickStart = new THREE.Vector3(0, -tickSize / 2, i);
-      const zTickEnd = new THREE.Vector3(0, tickSize / 2, i);
-      group.add(makeLine(zTickStart, zTickEnd, 0x2a54f5, lineOpacity * 0.7));
+      zTickPts.push(0, -tickSize / 2, i, 0, tickSize / 2, i);
       const zNum = makeAxisLabelSprite(numberText, numberColor, THREE, numberFontSize, numberScale, numberScale * 0.5);
       zNum.position.set(0, -numberDistance, i);
       group.add(zNum);
     }
+
+    const addTickSegments = (pts, color) => {
+      if (!pts.length) return;
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pts), 3));
+      const m = new THREE.LineBasicMaterial({ color, transparent: true, opacity: lineOpacity * 0.7 });
+      group.add(new THREE.LineSegments(g, m));
+    };
+    addTickSegments(xTickPts, 0xe53935);
+    addTickSegments(yTickPts, 0x22a945);
+    addTickSegments(zTickPts, 0x2a54f5);
   }
 
   return group;
@@ -681,8 +1116,10 @@ function _disposeGridHelper(grid) {
 
 function _createGroundPlane(size) {
   const THREE = view.THREE;
-  return new THREE.Mesh(
-    new THREE.PlaneGeometry(size, size, 1, 1),
+  // 复用共享单位平面顶点数据，通过 scale 达到目标尺寸，
+  // 避免每次缩放重建网格时重新分配 PlaneGeometry 顶点缓冲。
+  const mesh = new THREE.Mesh(
+    getSharedUnitPlane(),
     new THREE.MeshBasicMaterial({
       color: 0x1a2030,
       transparent: true,
@@ -691,6 +1128,9 @@ function _createGroundPlane(size) {
       depthWrite: false,
     })
   );
+  mesh.scale.set(size, size, 1);
+  mesh.userData.sharedGeometry = true;
+  return mesh;
 }
 
 function _createGridHelper(size, divisions) {
@@ -723,7 +1163,7 @@ function updateGroundGrid(cfg) {
 
   if (view.groundPlane) {
     view.scene.remove(view.groundPlane);
-    view.groundPlane.geometry?.dispose?.();
+    if (!view.groundPlane.userData?.sharedGeometry) view.groundPlane.geometry?.dispose?.();
     view.groundPlane.material?.dispose?.();
   }
   const groundPlane = _createGroundPlane(size);
@@ -1043,6 +1483,10 @@ async function ensure3D() {
       renderer.setViewport(0, 0, w, h);
       composer.render();
       renderMiniAxisOverlay();
+      
+      // Update LOD objects based on camera distance
+      updateAllLODs();
+      
       requestAnimationFrame(animate);
     };
     centerCamera(true);
@@ -1241,19 +1685,55 @@ async function fetchMesh(eq) {
   return await resp.json();
 }
 
+async function fetchMeshLOD(eq, quality = 1) {
+  const resp = await fetch(`${apiBase()}/api/mesh_lod`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      equation: eq.text,
+      params: paramsObject(),
+      view_radius: currentRequestViewRadius(),
+      quality: quality,  // 1=low, 3=high
+    }),
+  });
+  if (!resp.ok) {
+    const txt = await resp.text();
+    throw new Error(txt || `HTTP ${resp.status}`);
+  }
+  return await resp.json();
+}
+
 function removeMeshById(id) {
   const obj = state.meshById.get(id);
   if (!obj || !view.meshGroup) return;
+  if (obj.userData?.planeInstance) removePlaneInstance(id);
   view.meshGroup.remove(obj);
   obj.traverse?.((child) => {
-    if (child.geometry) child.geometry.dispose();
+    if (child.geometry && !child.userData?.sharedGeometry) child.geometry.dispose();
     if (child.material) child.material.dispose();
   });
   state.meshById.delete(id);
+  // Also remove LOD object if exists
+  const lodObj = state.lodObjects.get(id);
+  if (lodObj && view.meshGroup) {
+    view.meshGroup.remove(lodObj);
+    lodObj.traverse?.((child) => {
+      if (child.geometry && !child.userData?.sharedGeometry) child.geometry.dispose();
+      if (child.material) child.material.dispose();
+    });
+    state.lodObjects.delete(id);
+  }
+  // Cancel any pending LOD fetch
+  if (state.lodPending.has(id)) {
+    state.lodPending.delete(id);
+  }
 }
 
 function clearAllMeshes() {
   for (const id of [...state.meshById.keys()]) removeMeshById(id);
+  // Clear LOD state
+  state.lodObjects.clear();
+  state.lodPending.clear();
 }
 
 function clearIntersections() {
@@ -1288,38 +1768,25 @@ function buildExactPlaneObject(meshData, color) {
     .add(p3)
     .multiplyScalar(0.25);
 
-  const geometry = new THREE.PlaneGeometry(width, height, 1, 1);
-  const material = new THREE.MeshPhysicalMaterial({
-    color,
-    transparent: true,
-    opacity: 0.18,
-    side: THREE.DoubleSide,
-    roughness: 0.45,
-    metalness: 0.35,
-    clearcoat: 0.45,
-    emissive: color,
-    emissiveIntensity: 0.08,
-    depthWrite: false,
-    depthTest: true,
-    blending: THREE.NormalBlending,
-    polygonOffset: true,
-    polygonOffsetFactor: -1,
-    polygonOffsetUnits: -2,
-  });
-
-  const mesh = new THREE.Mesh(geometry, material);
-  const basis = new THREE.Matrix4().makeBasis(uDir, vDir, nDir);
+  // InstancedMesh 优化：不再为每个平面创建独立 PlaneGeometry(width, height)。
+  // 所有精确平面共用 1x1 单位平面顶点数据，宽高烘焙进实例矩阵的基向量缩放，
+  // 颜色通过 InstancedMesh.setColorAt 逐实例设置，N 个平面 = 1 次 draw call。
+  // 返回一个轻量占位 Group（不含子对象），实例注册在 replaceEquationMesh 中完成。
+  const basis = new THREE.Matrix4().makeBasis(
+    uDir.clone().multiplyScalar(width),
+    vDir.clone().multiplyScalar(height),
+    nDir
+  );
   basis.setPosition(center);
-  mesh.matrixAutoUpdate = false;
-  mesh.matrix.copy(basis);
-  mesh.renderOrder = 10;
 
   const group = new THREE.Group();
-  group.add(mesh);
+  group.userData.planeInstance = true;
+  group.userData.planeMatrix = basis;
+  group.userData.planeColor = new THREE.Color(color);
   return group;
 }
 
-function buildMeshObject(meshData, color) {
+function buildMeshObject(meshData, color, useLOD = false) {
   const THREE = view.THREE;
   const verts = meshData.vertices || [];
   const faces = meshData.faces || [];
@@ -1364,18 +1831,17 @@ function buildMeshObject(meshData, color) {
   geometry.computeVertexNormals();
   geometry.normalizeNormals();
 
-  const group = new THREE.Group();
-  if (singleSurfaceMode) {
-    const singleMat = new THREE.MeshPhysicalMaterial({
+  const createMaterial = (side, opacity, emissiveIntensity) => {
+    return new THREE.MeshPhysicalMaterial({
       color,
       transparent: true,
-      opacity: 0.22,
-      side: THREE.DoubleSide,
+      opacity,
+      side,
       roughness: 0.35,
       metalness: 0.35,
       clearcoat: 0.55,
       emissive: color,
-      emissiveIntensity: 0.1,
+      emissiveIntensity,
       depthWrite: false,
       depthTest: true,
       blending: THREE.NormalBlending,
@@ -1383,48 +1849,20 @@ function buildMeshObject(meshData, color) {
       polygonOffsetFactor: -1,
       polygonOffsetUnits: -2,
     });
+  };
+
+  const group = new THREE.Group();
+  
+  if (singleSurfaceMode) {
+    const singleMat = createMaterial(THREE.DoubleSide, 0.22, 0.1);
     const singleMesh = new THREE.Mesh(geometry, singleMat);
     singleMesh.renderOrder = 10;
     group.add(singleMesh);
     return group;
   }
 
-  const backMat = new THREE.MeshPhysicalMaterial({
-    color,
-    transparent: true,
-    opacity: 0.14,
-    side: THREE.BackSide,
-    roughness: 0.45,
-    metalness: 0.3,
-    clearcoat: 0.3,
-    emissive: color,
-    emissiveIntensity: 0.06,
-    depthWrite: false,
-    depthTest: true,
-    blending: THREE.NormalBlending,
-    polygonOffset: true,
-    polygonOffsetFactor: -2,
-    polygonOffsetUnits: -4,
-    alphaTest: 0.01,
-  });
-  const frontMat = new THREE.MeshPhysicalMaterial({
-    color,
-    transparent: true,
-    opacity: 0.24,
-    side: THREE.FrontSide,
-    roughness: 0.35,
-    metalness: 0.35,
-    clearcoat: 0.55,
-    emissive: color,
-    emissiveIntensity: 0.1,
-    depthWrite: false,
-    depthTest: true,
-    blending: THREE.NormalBlending,
-    polygonOffset: true,
-    polygonOffsetFactor: -2,
-    polygonOffsetUnits: -4,
-    alphaTest: 0.01,
-  });
+  const backMat = createMaterial(THREE.BackSide, 0.14, 0.06);
+  const frontMat = createMaterial(THREE.FrontSide, 0.24, 0.1);
   const backMesh = new THREE.Mesh(geometry, backMat);
   const frontMesh = new THREE.Mesh(geometry, frontMat);
   backMesh.renderOrder = 10;
@@ -1514,6 +1952,9 @@ async function drawAll(mode = "manual") {
   const ok3d = await ensure3D();
   if (!ok3d) return;
 
+  // Ensure mesh worker is ready (non-blocking; falls back gracefully if unavailable)
+  initMeshWorker();
+
   // 更新坐标轴长度以匹配视野范围
   updateAxisLength();
 
@@ -1522,86 +1963,71 @@ async function drawAll(mode = "manual") {
   setStatus(mode === "manual" ? "正在绘制..." : "参数更新中...");
   clearAllMeshes();
   clearIntersections();
+
+  // Partition equations: frontend exact planes go straight to scene,
+  // the rest go to the Web Worker (or fallback main-thread fetch).
+  const frontendEqs = [];
+  const workerEqs = [];
+  for (const eq of state.equations) {
+    if (isFrontendExactPlaneEquation(eq)) {
+      frontendEqs.push(eq);
+    } else {
+      workerEqs.push(eq);
+    }
+  }
+
+  // Render local exact planes immediately (no backend needed)
+  let localDrawn = 0;
+  for (const eq of frontendEqs) {
+    if (seq !== state.drawSeq) return;
+    const localMesh = buildLocalExactPlaneMeshData(eq);
+    if (!meshHasRenderableGeometry(localMesh)) continue;
+    if (!equationStillExists(eq.id)) continue;
+    if (replaceEquationMesh(eq, localMesh)) {
+      const obj = state.meshById.get(eq.id);
+      if (obj) obj.userData.isPreview = false;
+      localDrawn += 1;
+    }
+  }
+
+  if (seq !== state.drawSeq) return;
+  state.hasDrawn = true;
+
+  // Kick off intersection preview in parallel with mesh fetches
   const previewIntersectionsPromise = state.equations.length >= 2
     ? loadIntersectionCurves(seq, { lod: true, quality: 1 })
+    .catch((err) => console.warn("交线绘制失败:", err))
     : Promise.resolve();
 
-  let drawn = 0;
-  let needsHighQualityPass = false;
-  try {
-    for (const eq of state.equations) {
-      if (seq !== state.drawSeq) return;
-      if (isFrontendExactPlaneEquation(eq)) {
-        const localMesh = buildLocalExactPlaneMeshData(eq);
-        if (!meshHasRenderableGeometry(localMesh)) continue;
-        if (!equationStillExists(eq.id)) continue;
-        if (replaceEquationMesh(eq, localMesh)) {
-          const obj = state.meshById.get(eq.id);
-          if (obj) obj.userData.isPreview = false;
-          drawn += 1;
-        }
-        continue;
-      }
-
-      // 渐进式加载：先请求快速预览
-      const payload = await fetch(`${apiBase()}/api/mesh`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          equation: eq.text,
-          params: paramsObject(),
-          view_radius: currentRequestViewRadius(),
-          lod: true,
-          quality: 1,  // 强制使用标准画质进行快速预览
-        }),
-      });
-      
-      if (!payload.ok) {
-        const txt = await payload.text();
-        throw new Error(txt || `HTTP ${payload.status}`);
-      }
-      
-      const meshData = await payload.json();
-      if (seq !== state.drawSeq) return;
-      if (!equationStillExists(eq.id)) continue;
-      const mesh = forceExactPlaneMeta(meshData.mesh, eq.text);
-      if (!meshHasRenderableGeometry(mesh)) continue;
-      if (replaceEquationMesh(eq, mesh)) {
-        const obj = state.meshById.get(eq.id);
-        if (obj) obj.userData.isPreview = true;
-        drawn += 1;
-        needsHighQualityPass = true;
-      }
-    }
+  if (workerEqs.length === 0) {
+    // All equations are frontend exact planes
+    try { await previewIntersectionsPromise; } catch (_) {}
     if (seq !== state.drawSeq) return;
-    state.hasDrawn = true;
-    if (drawn === 0) setStatus("当前视图内没有可绘制几何");
-    else {
-      try {
-        await previewIntersectionsPromise;
-      } catch (err) {
-        console.warn("交线绘制失败:", err);
-      }
-      if (seq !== state.drawSeq) return;
-      if (needsHighQualityPass) {
-        setStatus(`快速预览完成 (${drawn}/${state.equations.length})，正在优化质量...`);
-      } else {
-        setStatus(`绘制完成 (${drawn}/${state.equations.length})`);
-      }
-    }
-    
-    // 仅在用户选择超清/高清时才做后台高质量重绘，避免默认卡顿
-    if (needsHighQualityPass && state.quality >= 2) {
-      state.highQualityTimer = setTimeout(() => {
-        if (seq !== state.drawSeq) return;
-        loadHighQualityVersion(seq);
-      }, 500);
-    }
-  } catch (err) {
-    if (seq !== state.drawSeq) return;
-    setStatus(`绘制失败: ${String(err)}`);
-    console.error(err);
+    setStatus(`绘制完成 (${state.equations.length}/${state.equations.length})`);
+    return;
   }
+
+  // Kick off mesh fetches via worker (or fallback)
+  // Results arrive out-of-order and are applied incrementally.
+  // The worker calls onAllWorkerResultsIn(seq) when all tasks are done.
+  scheduleWorkerMeshFetch(workerEqs, seq, {
+    lod: true,
+    quality: 1,
+    fetchParams: paramsObject(),
+  });
+
+  setStatus(`快速预览中 (0/${workerEqs.length})…`);
+
+  // Await intersection preview for status message
+  try { await previewIntersectionsPromise; } catch (_) {}
+  if (seq !== state.drawSeq) return;
+
+  if (localDrawn === 0 && workerEqs.length === 0) {
+    setStatus("当前视图内没有可绘制几何");
+  } else if (localDrawn > 0 && workerEqs.length === 0) {
+    setStatus(`绘制完成 (${localDrawn}/${localDrawn})`);
+  }
+  // Otherwise status will be updated by onAllWorkerResultsIn / onWorkerMessage
 }
 
 async function loadHighQualityVersion(seq) {
@@ -1609,55 +2035,29 @@ async function loadHighQualityVersion(seq) {
     if (seq !== state.drawSeq) return;
     const equations = state.equations.map(eq => eq.text);
     if (equations.length === 0) return;
-    
-    const params = paramsObject();
+
     const highQualityIntersectionsPromise = equations.length >= 2
       ? loadIntersectionCurves(seq, { lod: false, quality: state.quality })
+      .catch((err) => console.warn("交线更新失败:", err))
       : Promise.resolve();
-    
-    for (const eq of state.equations) {
-      if (seq !== state.drawSeq) return;
-      if (isFrontendExactPlaneEquation(eq)) continue;
-      // 请求高质量版本
-      const payload = await fetch(`${apiBase()}/api/mesh`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          equation: eq.text,
-          params: params,
-          view_radius: currentRequestViewRadius(),
-          quality: state.quality,  // 使用用户选择的真实画质
-          lod: false,              // 禁用LOD，使用完整质量
-        }),
-      });
-      
-      if (!payload.ok) continue;
-      const meshData = await payload.json();
-      if (seq !== state.drawSeq) return;
-      if (!equationStillExists(eq.id)) continue;
-      
-      const mesh = forceExactPlaneMeta(meshData.mesh, eq.text);
-      if (!meshHasRenderableGeometry(mesh)) continue;
-      
-      // 替换预览网格为高质量版本
-      if (replaceEquationMesh(eq, mesh)) {
-        const highQualityObj = state.meshById.get(eq.id);
-        if (highQualityObj) highQualityObj.userData.isPreview = false;
-      }
-    }
-    if (seq !== state.drawSeq) return;
-    
-    try {
-      await highQualityIntersectionsPromise;
-    } catch (err) {
-      console.warn("交线更新失败:", err);
-    }
-    if (seq !== state.drawSeq) return;
 
-    setStatus(`高质量优化完成 (${state.equations.length}/${state.equations.length})`);
-    
+    // Collect non-frontend equations for high-quality worker fetch
+    const hqEqs = state.equations.filter((eq) => !isFrontendExactPlaneEquation(eq));
+    if (hqEqs.length === 0) {
+      try { await highQualityIntersectionsPromise; } catch (_) {}
+      if (seq !== state.drawSeq) return;
+      setStatus(`高质量优化完成 (${state.equations.length}/${state.equations.length})`);
+      return;
+    }
+
+    // Kick off high-quality mesh fetches via worker (or fallback)
+    scheduleWorkerHighQualityFetch(hqEqs, seq);
+
+    // High-quality intersections run in parallel; they don't block mesh upgrade.
+    // onAllWorkerResultsIn will set the final status when all meshes are in.
+    try { await highQualityIntersectionsPromise; } catch (_) {}
+
   } catch (err) {
-    // 高质量加载失败不影响用户体验
     console.warn("高质量加载失败:", err);
   } finally {
     if (seq === state.drawSeq) state.highQualityTimer = null;

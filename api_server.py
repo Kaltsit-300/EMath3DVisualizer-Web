@@ -7,6 +7,7 @@ import subprocess
 import sys
 import threading
 import webbrowser
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -80,6 +81,88 @@ class MeshRequest(BaseModel):
     quality: int = Field(default=1, ge=1, le=3)  # 默认标准画质，降低首屏卡顿
 
 
+# ── LRU 缓存层 ──────────────────────────────────────────────────────────────
+#
+# 为 /api/mesh 端点添加两层缓存：
+#   1. `_parse_cached`  — 缓存 SymPy 解析结果（方程文本 → parsed dict）
+#   2. `_mesh_cached`   — 缓存完整网格计算结果，key = (equation, params_json,
+#                          view_radius, lod, quality)
+#
+# 两层分离是因为 parsed dict 包含 SymPy 表达式（不可 JSON 序列化），
+# 但可作为 dict 键用于 lru_cache；而完整 mesh 结果必须 JSON 可序列化
+# 才能跨请求返回。
+
+
+@lru_cache(maxsize=256)
+def _parse_cached(equation: str, params_json: str):
+    """解析方程并缓存结果。params_json 为 json.dumps(sorted(params.items()))。"""
+    params = json.loads(params_json) if params_json else {}
+    return mesh_service.parse_for_api(equation, params)
+
+
+@lru_cache(maxsize=256)
+def _mesh_cached(
+    equation: str,
+    params_json: str,
+    view_radius: float,
+    lod: bool,
+    quality: int,
+):
+    """完整网格计算 + 缓存。params_json 为 json.dumps(sorted(params.items()))。"""
+    params = json.loads(params_json) if params_json else {}
+    parsed, missing = _parse_cached(equation, params_json)
+    if parsed is None:
+        return {
+            "ok": True,
+            "mesh": {"vertices": [], "faces": [], "meta": {"empty": True, "reason": "not_geometric"}},
+            "missing_params_filled": [],
+        }
+
+    params = dict(params)
+    for name in missing:
+        params[name] = 1.0
+
+    # 更新 params_json 以反映补全后的参数
+    params_json_filled = json.dumps(sorted(params.items()), sort_keys=True)
+    # 重新构造 cache key（使用补全后的 params）
+    return _mesh_cached_impl(equation, params_json_filled, view_radius, lod, quality)
+
+
+@lru_cache(maxsize=256)
+def _mesh_cached_impl(
+    equation: str,
+    params_json: str,
+    view_radius: float,
+    lod: bool,
+    quality: int,
+):
+    """实际执行网格计算（不含参数补全逻辑）。"""
+    params = json.loads(params_json) if params_json else {}
+    parsed, missing = mesh_service.parse_for_api(equation, params)
+    if parsed is None:
+        return {
+            "ok": True,
+            "mesh": {"vertices": [], "faces": [], "meta": {"empty": True, "reason": "not_geometric"}},
+            "missing_params_filled": missing,
+        }
+    mesh = mesh_service.build_isosurface_data(
+        parsed=parsed,
+        params=params,
+        view_radius=view_radius,
+        lod=lod,
+        quality=quality,
+    )
+    return {"ok": True, "mesh": mesh, "missing_params_filled": missing}
+
+
+
+class MeshLODRequest(BaseModel):
+    equation: str = Field(..., description="Equation text")
+    params: dict[str, float] = Field(default_factory=dict)
+    view_radius: float = Field(default=10.0, ge=0.05, le=500.0)
+    quality: int = Field(default=1, ge=1, le=3, description="1=low, 2=medium, 3=high")
+
+
 class IntersectionsRequest(BaseModel):
     equations: list[str] = Field(default_factory=list, description="Equation list")
     params: dict[str, float] = Field(default_factory=dict)
@@ -143,6 +226,30 @@ def parse_equation(req: ParseRequest) -> dict[str, Any]:
 
 @app.post("/api/mesh")
 def build_mesh(req: MeshRequest) -> dict[str, Any]:
+    # 构建缓存键
+    params_json = json.dumps(sorted(req.params.items()), sort_keys=True)
+
+    try:
+        result = _mesh_cached(
+            equation=req.equation,
+            params_json=params_json,
+            view_radius=req.view_radius,
+            lod=req.lod,
+            quality=req.quality,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Mesh generation failed: {exc}") from exc
+
+    return result
+
+
+@app.post("/api/mesh_lod")
+def build_mesh_lod(req: MeshLODRequest) -> dict[str, Any]:
+    """Build mesh with LOD (Level of Detail) support.
+    
+    quality=1: Low resolution (resolution ~30)
+    quality=3: High resolution (resolution ~60)
+    """
     try:
         parsed, missing = mesh_service.parse_for_api(req.equation, req.params)
     except Exception as exc:
@@ -159,18 +266,23 @@ def build_mesh(req: MeshRequest) -> dict[str, Any]:
     for name in missing:
         params[name] = 1.0
 
+    # 根据质量级别调整分辨率
+    # quality=1 -> 低模 (resolution ~30)
+    # quality=3 -> 高模 (resolution ~60)
+    quality = int(max(1, min(3, req.quality)))
+    
     try:
         mesh = mesh_service.build_isosurface_data(
             parsed=parsed,
             params=params,
             view_radius=req.view_radius,
-            lod=req.lod,
-            quality=req.quality,
+            lod=True,  # Enable LOD optimizations
+            quality=quality,
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Mesh generation failed: {exc}") from exc
 
-    return {"ok": True, "mesh": mesh, "missing_params_filled": missing}
+    return {"ok": True, "mesh": mesh, "missing_params_filled": missing, "quality": quality}
 
 
 @app.post("/api/format")

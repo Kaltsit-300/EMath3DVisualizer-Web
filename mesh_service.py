@@ -135,7 +135,15 @@ def _marching(values, bounds_min, bounds_max):
 
 def _calc_resolutions(view_radius: float, quality: int, lod: bool):
     if lod:
-        return 32, 48, 800_000
+        # LOD mode: low quality uses lower resolution
+        # quality=1 -> ~30 resolution (low poly)
+        # quality=3 -> ~60 resolution (high poly)
+        quality = int(max(1, min(3, int(quality))))
+        coarse_res = {1: 28, 2: 38, 3: 48}[quality]
+        fine_res = {1: 30, 2: 45, 3: 60}[quality]
+        max_voxels = {1: 500_000, 2: 800_000, 3: 1_200_000}[quality]
+        return coarse_res, fine_res, max_voxels
+    
     quality = int(max(1, min(3, int(quality))))
     coarse_res = {1: 36, 2: 48, 3: 60}[quality]
     fine_res = {1: 72, 2: 96, 3: 120}[quality]
