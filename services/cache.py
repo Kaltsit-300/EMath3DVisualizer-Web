@@ -34,7 +34,14 @@ def _ensure_db():
     conn.close()
 
 
-def _make_key(equations: list, params: dict, view_radius: float, lod: bool) -> str:
+def _make_key(equations: list, params, view_radius: float, lod: bool) -> str:
+    # 防御：兼容调用方误传 list-of-pairs（历史 bug：上层 `json.dumps(sorted(params.items()))`
+    # 会生成 JSON 列表而非对象）
+    if not isinstance(params, dict):
+        try:
+            params = dict(params)
+        except Exception:
+            params = {}
     data = {
         "equations": sorted(str(e).strip() for e in equations),
         "params": dict(sorted(params.items())),

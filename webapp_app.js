@@ -566,6 +566,10 @@ function onWorkerMessage(evt) {
     if (msg.workerSeq !== state.workerDrawSeq) return;
     if (error || !data) {
       console.warn(`[Worker] mesh result error for ${id}:`, error);
+      (state.drawErrors || (state.drawErrors = new Map())).set(
+        id,
+        error || "后端无响应"
+      );
     } else {
       applyWorkerMeshResult(id, data);
     }
@@ -591,7 +595,13 @@ function applyWorkerMeshResult(eqId, data) {
   const eq = state.equations.find((e) => e.id === eqId);
   if (!eq || !equationStillExists(eqId)) return;
   const mesh = forceExactPlaneMeta(data.mesh || {}, eq.text);
-  if (!meshHasRenderableGeometry(mesh)) return;
+  if (!meshHasRenderableGeometry(mesh)) {
+    (state.drawErrors || (state.drawErrors = new Map())).set(
+      eqId,
+      "返回空网格（该方程可能无解或超出可视范围）"
+    );
+    return;
+  }
   if (replaceEquationMesh(eq, mesh)) {
     const obj = state.meshById.get(eqId);
     if (obj) obj.userData.isPreview = true;
@@ -606,7 +616,18 @@ function onAllWorkerResultsIn(seq) {
     const obj = state.meshById.get(eq.id);
     if (obj) obj.userData.isPreview = false;
   }
-  
+
+  // Show per-equation error summary (instead of silent console.warn)
+  const errors = state.drawErrors;
+  const failedMessages = [];
+  if (errors && errors.size > 0) {
+    for (const eq of state.equations) {
+      if (errors.has(eq.id)) {
+        failedMessages.push(`${eq.label || eq.text}：${errors.get(eq.id)}`);
+      }
+    }
+  }
+
   // Load LOD for all equations in background if enabled
   if (state.lodEnabled && state.quality >= 2) {
     setTimeout(() => {
@@ -625,7 +646,12 @@ function onAllWorkerResultsIn(seq) {
       loadHighQualityVersion(seq);
     }, 500);
   } else {
-    setStatus(`绘制完成 (${state.equations.length}/${state.equations.length})`);
+    const total = state.equations.length;
+    if (failedMessages.length > 0) {
+      setStatus(`⚠ ${failedMessages.join("；")}`, "error");
+    } else {
+      setStatus(`绘制完成 (${total}/${total})`);
+    }
   }
 }
 
@@ -674,17 +700,33 @@ async function scheduleFallbackMeshFetch(equations, seq, opts) {
           quality: Number(quality) || 1,
         }),
       });
-      if (!resp.ok) continue;
+      if (!resp.ok) {
+        (state.drawErrors || (state.drawErrors = new Map())).set(
+          eq.id,
+          `HTTP ${resp.status}：${(await resp.text().catch(() => "")).slice(0, 120)}`
+        );
+        continue;
+      }
       const data = await resp.json();
       if (seq !== state.drawSeq) return;
       if (!equationStillExists(eq.id)) continue;
       const mesh = forceExactPlaneMeta(data.mesh || {}, eq.text);
-      if (!meshHasRenderableGeometry(mesh)) continue;
+      if (!meshHasRenderableGeometry(mesh)) {
+        (state.drawErrors || (state.drawErrors = new Map())).set(
+          eq.id,
+          "返回空网格（该方程可能无解或超出可视范围）"
+        );
+        continue;
+      }
       if (replaceEquationMesh(eq, mesh)) {
         const obj = state.meshById.get(eq.id);
         if (obj) obj.userData.isPreview = true;
       }
     } catch (err) {
+      (state.drawErrors || (state.drawErrors = new Map())).set(
+        eq.id,
+        `请求失败：${String(err).slice(0, 120)}`
+      );
       console.warn("[Fallback] mesh fetch error:", err);
     }
   }
@@ -701,7 +743,16 @@ async function scheduleFallbackMeshFetch(equations, seq, opts) {
       loadHighQualityVersion(seq);
     }, 500);
   } else {
-    setStatus(`绘制完成 (${equations.length}/${equations.length})`);
+    const failed = [];
+    const errors = state.drawErrors;
+    if (errors && errors.size > 0) {
+      for (const eq of equations) { if (errors.has(eq.id)) failed.push(`${eq.label || eq.text}：${errors.get(eq.id)}`); }
+    }
+    if (failed.length > 0) {
+      setStatus(`⚠ ${failed.join("；")}`, "error");
+    } else {
+      setStatus(`绘制完成 (${equations.length}/${equations.length})`);
+    }
   }
 }
 
@@ -748,22 +799,47 @@ async function scheduleFallbackHighQualityFetch(equations, seq) {
           quality: state.quality,
         }),
       });
-      if (!resp.ok) continue;
+      if (!resp.ok) {
+        (state.drawErrors || (state.drawErrors = new Map())).set(
+          eq.id,
+          `HTTP ${resp.status}：${(await resp.text().catch(() => "")).slice(0, 120)}`
+        );
+        continue;
+      }
       const data = await resp.json();
       if (seq !== state.drawSeq) return;
       if (!equationStillExists(eq.id)) continue;
       const mesh = forceExactPlaneMeta(data.mesh || {}, eq.text);
-      if (!meshHasRenderableGeometry(mesh)) continue;
+      if (!meshHasRenderableGeometry(mesh)) {
+        (state.drawErrors || (state.drawErrors = new Map())).set(
+          eq.id,
+          "返回空网格（该方程可能无解或超出可视范围）"
+        );
+        continue;
+      }
       if (replaceEquationMesh(eq, mesh)) {
         const obj = state.meshById.get(eq.id);
         if (obj) obj.userData.isPreview = false;
       }
     } catch (err) {
+      (state.drawErrors || (state.drawErrors = new Map())).set(
+        eq.id,
+        `请求失败：${String(err).slice(0, 120)}`
+      );
       console.warn("[Fallback] high-quality mesh fetch error:", err);
     }
   }
   if (seq !== state.drawSeq) return;
-  setStatus(`高质量优化完成 (${equations.length}/${equations.length})`);
+  const failed = [];
+  const errors = state.drawErrors;
+  if (errors && errors.size > 0) {
+    for (const eq of equations) { if (errors.has(eq.id)) failed.push(`${eq.label || eq.text}：${errors.get(eq.id)}`); }
+  }
+  if (failed.length > 0) {
+    setStatus(`⚠ ${failed.join("；")}`, "error");
+  } else {
+    setStatus(`高质量优化完成 (${equations.length}/${equations.length})`);
+  }
 }
 
 function currentRequestViewRadius() {
@@ -785,6 +861,7 @@ function cancelPendingAsyncDraws() {
   clearTimeout(state.intersectionRefreshTimer);
   state.highQualityTimer = null;
   state.intersectionRefreshTimer = null;
+  state.drawErrors = new Map();
 }
 
 function isFrontendExactPlaneEquation(eq) {

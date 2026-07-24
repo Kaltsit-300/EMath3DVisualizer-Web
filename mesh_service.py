@@ -30,19 +30,28 @@ _USE_CACHE = True
 def normalize_and_build_expr(eq_text: str):
     """兼容旧版：将输入文本标准化并转换为 SymPy 表达式，返回 (expr, normalized_text)。"""
     text = eq_text.replace("√", "sqrt").replace("²", "**2").replace("³", "**3")
+    text = re.sub(r'\|([^|]+?)\|', r'abs(\1)', text)
+    text = text.replace("ln(", "log(")
 
+    # 保护含坐标字母的函数名 exp（同 equation_parser.normalize_equation_text）
+    text = text.replace("exp", "\x00")
+
+    # 函数名后加空格，避免 "sin(" 被误判为 sin*(...)
     funcs = [
-        "sin", "cos", "tan", "sqrt", "exp", "log", "ln", "abs",
+        "sin", "cos", "tan", "sqrt", "log", "abs",
         "asin", "acos", "atan", "sinh", "cosh", "tanh", "floor", "ceil",
     ]
     for f_name in funcs:
         text = text.replace(f"{f_name}(", f"{f_name} (")
 
     text = re.sub(r"(\d)([a-zA-Z])", r"\1*\2", text)
-    text = re.sub(r"([a-zA-Z])([xyz])", r"\1*\2", text)
-    text = re.sub(r"([xyz])([a-zA-Z])", r"\1*\2", text)
+    text = re.sub(r"([a-zA-Z])([xyz])", r"\1*\2", text, flags=re.IGNORECASE)
+    text = re.sub(r"([xyz])([a-zA-Z])", r"\1*\2", text, flags=re.IGNORECASE)
     text = re.sub(r"(?<=[a-zA-Z0-9])(?=\()", "*", text)
     text = re.sub(r"(?<=\))(?=[a-zA-Z0-9])", "*", text)
+    text = re.sub(r"(\d)\x00", lambda m: m.group(1) + "*" + "\x00", text)
+    text = re.sub(r"([a-zA-Z])\x00", lambda m: m.group(1) + "*" + "\x00", text)
+    text = text.replace("\x00", "exp")
 
     normalized = text.replace("^", "**")
     ops = ["==", "!=", ">=", "<=", ">", "<", "="]
@@ -616,6 +625,15 @@ def build_isosurface_data(
     识别失败则回退到 Marching Cubes。
     """
     params = params or {}
+
+    # 防御：表达式里仍含未在 params 中提供的符号（除 x/y/z）时，
+    # 用 1.0 填充，避免下游出现 "Cannot convert expression to float" 类崩溃。
+    if parsed is not None:
+        for _s in parsed["expr"].free_symbols:
+            _name = str(_s)
+            if _name not in ("x", "y", "z") and _name not in params:
+                params = dict(params)
+                params[_name] = 1.0
 
     # 1. 尝试缓存命中
     if _USE_CACHE:

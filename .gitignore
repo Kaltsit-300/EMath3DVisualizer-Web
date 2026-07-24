@@ -28,3 +28,6 @@ debug.log
 web/
 
 .cache/mesh_cache.db
+
+.workbuddy/
+screenshots/*.jpg.local

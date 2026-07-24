@@ -26,9 +26,19 @@ def normalize_equation_text(eq_text: str) -> str:
     text = text.replace("³", "**3")   # 立方
     text = text.replace("π", "pi")    # 圆周率
 
-    # 函数名后加空格，便于后续处理
+    # 绝对值符号 |...| -> abs(...)
+    text = re.sub(r'\|([^|]+?)\|', r'abs(\1)', text)
+
+    # ln 在 SymPy 中对应 log
+    text = text.replace("ln(", "log(")
+
+    # 保护含坐标字母的函数名 exp：隐式乘法补全会把 "exp" 中的 e-x、x-p
+    # 误判为隐式乘法而拆成 e*x*p。用单个 NUL 占位符替换，处理完后再还原。
+    text = text.replace("exp", "\x00")
+
+    # 函数名后加空格，避免 "sin(" 被误判为 sin*(...) 而崩溃
     funcs = [
-        "sin", "cos", "tan", "sqrt", "exp", "log", "ln", "abs",
+        "sin", "cos", "tan", "sqrt", "log", "abs",
         "asin", "acos", "atan", "sinh", "cosh", "tanh", "floor", "ceil",
     ]
     for f_name in funcs:
@@ -40,6 +50,13 @@ def normalize_equation_text(eq_text: str) -> str:
     text = re.sub(r"([xyz])([a-zA-Z])", r"\1*\2", text, flags=re.IGNORECASE)
     text = re.sub(r"(?<=[a-zA-Z0-9])(?=\()", "*", text)
     text = re.sub(r"(?<=\))(?=[a-zA-Z0-9])", "*", text)
+
+    # 数字 / 字母 与占位符之间的隐式乘法（lambda 避免 \x 转义问题）
+    text = re.sub(r"(\d)\x00", lambda m: m.group(1) + "*" + "\x00", text)
+    text = re.sub(r"([a-zA-Z])\x00", lambda m: m.group(1) + "*" + "\x00", text)
+
+    # 还原函数名
+    text = text.replace("\x00", "exp")
 
     # 将 ^ 转换为 **
     text = text.replace("^", "**")

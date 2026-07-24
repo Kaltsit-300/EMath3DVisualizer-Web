@@ -6,6 +6,18 @@
 ![python](https://img.shields.io/badge/Python-3.8%2B-blue?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 
+## 🖼️ 预览
+
+<p align="center">
+  <a href="screenshots/demo-sphere-cylinder.jpg">
+    <img src="screenshots/demo-sphere-cylinder.jpg" width="90%" alt="单位球与参数圆柱同屏渲染 + 自动求交线">
+  </a>
+</p>
+
+<p align="center">
+  <em>单位球 <code>x² + y² + z² = 1</code>（蓝）与参数圆柱 <code>x² + y² = 2a</code>（绿）同屏渲染，<code>a = 1</code>；青色曲线为两曲面自动求出的相交线。<br>拨动右下角的 <code>a</code> 滑块时，圆柱半径会按 <code>√(2a)</code> 实时变化。</em>
+</p>
+
 ## ✨ 主要特性
 
 - 🌌 **深色科幻风界面**：黑紫渐变主题 + UnrealBloomPass 辉光后处理

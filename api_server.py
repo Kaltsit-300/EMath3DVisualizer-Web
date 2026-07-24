@@ -123,7 +123,7 @@ def _mesh_cached(
         params[name] = 1.0
 
     # 更新 params_json 以反映补全后的参数
-    params_json_filled = json.dumps(sorted(params.items()), sort_keys=True)
+    params_json_filled = json.dumps(params, sort_keys=True)
     # 重新构造 cache key（使用补全后的 params）
     return _mesh_cached_impl(equation, params_json_filled, view_radius, lod, quality)
 
@@ -248,8 +248,8 @@ def parse_equation(req: ParseRequest) -> dict[str, Any]:
 
 @app.post("/api/mesh")
 def build_mesh(req: MeshRequest) -> dict[str, Any]:
-    # 构建缓存键
-    params_json = json.dumps(sorted(req.params.items()), sort_keys=True)
+    # 构建缓存键：params 直接序列化为 JSON 对象（dict 的 sort_keys 已保证有序）
+    params_json = json.dumps(req.params, sort_keys=True)
 
     try:
         result = _mesh_cached(
