@@ -18,8 +18,11 @@
   // The API server auto-selects a free port starting at 8000.
   // We try each port sequentially until one responds to /health.
   async function detectPort(basePort) {
-    const maxAttempts = basePort !== undefined ? 1 : 30;
-    const start = basePort !== undefined ? basePort : 8000;
+    if (basePort !== undefined && Number.isFinite(basePort)) {
+      return basePort;
+    }
+    const maxAttempts = 30;
+    const start = 8000;
     for (let port = start; port < start + maxAttempts; port++) {
       try {
         const resp = await fetch(`http://127.0.0.1:${port}/health`, {

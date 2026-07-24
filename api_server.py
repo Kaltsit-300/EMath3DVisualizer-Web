@@ -347,6 +347,12 @@ def format_rich_label(req: dict[str, str]) -> dict[str, str]:
     return {"label": sympy_to_rich_label(req.get("equation", ""))}
 
 
+@app.get("/health")
+def health() -> dict[str, str]:
+    """Health check for Web Worker port discovery."""
+    return {"status": "ok"}
+
+
 def _pick_port(host: str, preferred: int, span: int = 30) -> int:
     for port in range(preferred, preferred + span):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

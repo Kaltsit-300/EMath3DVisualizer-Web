@@ -524,6 +524,15 @@ function paramsObject() {
 
 // ---------- Web Worker for mesh fetching ----------
 
+function currentApiPort() {
+  try {
+    const url = new URL(window.location.href);
+    return Number(url.port) || 8000;
+  } catch {
+    return 8000;
+  }
+}
+
 function initMeshWorker() {
   if (state.meshWorker || state.workerFallback) return;
   try {
@@ -536,7 +545,9 @@ function initMeshWorker() {
       state.workerFallback = true;
     };
     state.meshWorker = worker;
-    console.log("[Worker] mesh worker initialised");
+    // pass current port so the worker can skip port probing
+    state.meshWorkerPort = currentApiPort();
+    console.log("[Worker] mesh worker initialised on port", state.meshWorkerPort);
   } catch (err) {
     console.warn("[Worker] Web Worker not supported, using main-thread fetch:", err);
     state.workerFallback = true;
@@ -636,6 +647,7 @@ function scheduleWorkerMeshFetch(equations, seq, opts) {
     id: eq.id,
     equation: eq.text,
     params: fetchParams,
+    port: state.meshWorkerPort,
     view_radius: currentRequestViewRadius(),
     lod: !!lod,
     quality: Number(quality) || 1,
@@ -709,6 +721,7 @@ function scheduleWorkerHighQualityFetch(equations, seq) {
     id: eq.id,
     equation: eq.text,
     params: paramsObject(),
+    port: state.meshWorkerPort,
     view_radius: currentRequestViewRadius(),
     lod: false,
     quality: state.quality,
