@@ -48,7 +48,7 @@ _ensure_runtime_deps()
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 
 
@@ -217,6 +217,22 @@ def page_worker() -> FileResponse:
     if not worker_path.exists():
         raise HTTPException(status_code=404, detail="Missing UI file: webapp_mesh_worker.js")
     return FileResponse(worker_path, media_type="application/javascript", headers=NO_CACHE_HEADERS)
+
+
+_FAVICON_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
+    '<rect width="64" height="64" rx="14" fill="#7c3aed"/>'
+    '<text x="32" y="33" font-family="Georgia,serif" font-weight="700" '
+    'font-size="34" fill="white" text-anchor="middle" '
+    'dominant-baseline="middle">\u222B</text>'
+    '</svg>'
+)
+
+
+@app.get("/favicon.ico")
+def favicon() -> Response:
+    # 用 SVG 内容响应 /favicon.ico 请求，浏览器会按 favicon 来用
+    return Response(content=_FAVICON_SVG, media_type="image/svg+xml", headers=NO_CACHE_HEADERS)
 
 
 @app.post("/api/parse")
